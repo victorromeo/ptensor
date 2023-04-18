@@ -1,6 +1,7 @@
 #ifndef __PTENSOR_TYPES_H
 #define __PTENSOR_TYPES_H
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 using std::array;
