@@ -49,8 +49,15 @@ add_library(ptensor  ${src_ptensor_alloc} ${src_ptensor_tensors} ${src_ptensor_o
 #target_link_libraries(ptensor ptensor_core optimized_ops)
 target_link_libraries(ptensor PUBLIC ptensor_core )
 target_include_directories(ptensor PUBLIC allocators tensors ops ops/reference ops/tflm errorHandlers)
-#target_include_directories(ptensor PUBLIC 
-#  $<BUILD_INTERFACE: allocators tensors ops>
-#  $<INSTALL_INTERFACE: ${CMAKE_CURRENT_SOURCE_DIR}/allocators ${CMAKE_CURRENT_SOURCE_DIR}/tensors ${CMAKE_CURRENT_SOURCE_DIR}/ops>
-#  )
 target_compile_features(ptensor PUBLIC cxx_std_11)
+
+install(TARGETS ptensor ptensor_core
+  EXPORT ptensorTargets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  )
+
+INSTALL (
+   DIRECTORY ${CMAKE_SOURCE_DIR}/src/
+   DESTINATION include/pTensor
+   FILES_MATCHING PATTERN "*.h*")

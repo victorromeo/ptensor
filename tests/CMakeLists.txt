@@ -80,3 +80,5 @@ package_add_test_with_libraries(test_transpose operators/test_transpose.cpp pten
 
 #Error Handlers
 package_add_test_with_libraries(test_simple_error_handler error_handlers/test_errorhandler.cpp ptensor error_handlers "${PROJECT_DIR}/test-data/")
+
+option(INSTALL_GTEST "Enable installation of googletest. (Projects embedding googletest may want to turn this OFF.)" OFF)
