@@ -114,14 +114,14 @@ void test_operators_gather(void) {
 
 }
 // First configure the pTensor test runner
-UTENSOR_TEST_CONFIGURE()
+PTENSOR_TEST_CONFIGURE()
 
 // Second declare tests to run
-UTENSOR_TEST(operators, quantizeV2, "Quantize V2 test")
-UTENSOR_TEST(operators, dequantize, "Dequantization Test")
-UTENSOR_TEST(operators, reshape, "Reshape Test")
-UTENSOR_TEST(operators, gather, "Gather Test")
+PTENSOR_TEST(operators, quantizeV2, "Quantize V2 test")
+PTENSOR_TEST(operators, dequantize, "Dequantization Test")
+PTENSOR_TEST(operators, reshape, "Reshape Test")
+PTENSOR_TEST(operators, gather, "Gather Test")
 
 
 // Third, run like hell
-UTENSOR_TEST_RUN()
+PTENSOR_TEST_RUN()

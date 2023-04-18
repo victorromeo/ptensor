@@ -212,20 +212,20 @@ void test_operators_fusedConvMaxpool34(void) {
 }
  
 // First configure the pTensor test runner
-UTENSOR_TEST_CONFIGURE()
+PTENSOR_TEST_CONFIGURE()
 
 // Second declare tests to run
-UTENSOR_TEST(operators, fusedConvMaxpool12, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool13, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool14, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool22, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool23, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool24, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool32, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool33, "Generated Fused Conv Maxpool test")
-UTENSOR_TEST(operators, fusedConvMaxpool34, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool12, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool13, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool14, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool22, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool23, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool24, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool32, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool33, "Generated Fused Conv Maxpool test")
+PTENSOR_TEST(operators, fusedConvMaxpool34, "Generated Fused Conv Maxpool test")
 
 
 // Third, run like hell
-UTENSOR_TEST_RUN()
+PTENSOR_TEST_RUN()
 

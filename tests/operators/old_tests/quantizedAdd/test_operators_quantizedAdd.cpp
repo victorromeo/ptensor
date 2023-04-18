@@ -28,11 +28,11 @@ void test_operators_quantizedAdd(){
 
 
 // First configure the pTensor test runner
-UTENSOR_TEST_CONFIGURE()
+PTENSOR_TEST_CONFIGURE()
 
 // Second declare tests to run
-UTENSOR_TEST(operators, quantizedAdd, "Generated test for quantized Add")
+PTENSOR_TEST(operators, quantizedAdd, "Generated test for quantized Add")
 
 
 // Third, run like hell
-UTENSOR_TEST_RUN()
+PTENSOR_TEST_RUN()

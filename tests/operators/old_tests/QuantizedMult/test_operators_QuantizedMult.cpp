@@ -75,14 +75,14 @@ void test_operators_qmul4(void) {
 
 
 // First configure the pTensor test runner
-UTENSOR_TEST_CONFIGURE()
+PTENSOR_TEST_CONFIGURE()
 
-UTENSOR_TEST(operators, qmul0, "Test qmul 0")
-UTENSOR_TEST(operators, qmul1, "Test qmul 1")
-UTENSOR_TEST(operators, qmul2, "Test qmul 2")
-UTENSOR_TEST(operators, qmul3, "Test qmul 3")
-UTENSOR_TEST(operators, qmul4, "Test qmul 4")
+PTENSOR_TEST(operators, qmul0, "Test qmul 0")
+PTENSOR_TEST(operators, qmul1, "Test qmul 1")
+PTENSOR_TEST(operators, qmul2, "Test qmul 2")
+PTENSOR_TEST(operators, qmul3, "Test qmul 3")
+PTENSOR_TEST(operators, qmul4, "Test qmul 4")
 
 
 // Third, run like hell
-UTENSOR_TEST_RUN()
+PTENSOR_TEST_RUN()

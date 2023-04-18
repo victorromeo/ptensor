@@ -55,12 +55,12 @@ void test_operators_qMatMul(void) {
 
 
 // First configure the pTensor test runner
-UTENSOR_TEST_CONFIGURE()
+PTENSOR_TEST_CONFIGURE()
 
 // Second declare tests to run
-UTENSOR_TEST(operators, qMatMul, "Test quantized matrix multiplications")
+PTENSOR_TEST(operators, qMatMul, "Test quantized matrix multiplications")
 
 
 // Third, run like hell
-UTENSOR_TEST_RUN()
+PTENSOR_TEST_RUN()
 

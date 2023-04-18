@@ -287,18 +287,18 @@ void test_operators_max(void) {
 
 
 // First configure the pTensor test runner
-UTENSOR_TEST_CONFIGURE()
+PTENSOR_TEST_CONFIGURE()
 
 // Second declare tests to run
-UTENSOR_TEST(operators, requantizationRange, "Test requantization range")
-UTENSOR_TEST(operators, requantize  , "Test requantize")
-UTENSOR_TEST(operators, requantize2 , "Test requantize 2")
-UTENSOR_TEST(operators, argmax      , "Test argmax")
-UTENSOR_TEST(operators, argmax2     , "Test argmax 2")
-UTENSOR_TEST(operators, add         , "Test add")
-UTENSOR_TEST(operators, min         , "Test min")
-UTENSOR_TEST(operators, max         , "Test max")
+PTENSOR_TEST(operators, requantizationRange, "Test requantization range")
+PTENSOR_TEST(operators, requantize  , "Test requantize")
+PTENSOR_TEST(operators, requantize2 , "Test requantize 2")
+PTENSOR_TEST(operators, argmax      , "Test argmax")
+PTENSOR_TEST(operators, argmax2     , "Test argmax 2")
+PTENSOR_TEST(operators, add         , "Test add")
+PTENSOR_TEST(operators, min         , "Test min")
+PTENSOR_TEST(operators, max         , "Test max")
 
 
 // Third, run like hell
-UTENSOR_TEST_RUN()
+PTENSOR_TEST_RUN()
