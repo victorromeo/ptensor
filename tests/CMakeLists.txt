@@ -1,3 +1,5 @@
+set(gtest_force_shared_crt on)
+
 add_subdirectory("${PROJECT_SOURCE_DIR}/extern/gtest" "extern/gtest")
 macro(package_add_test TESTNAME)
     # create an exectuable in which the tests will be stored
@@ -28,38 +30,38 @@ endmacro()
 
 # Core
 package_add_test_with_libraries(test_types core/test_types.cpp ptensor_core core "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_alloc allocators/test_arenaAllocator ptensor allocators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_context core/test_context ptensor core "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_alloc allocators/test_arenaAllocator.cpp ptensor allocators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_context core/test_context.cpp ptensor core "${PROJECT_DIR}/test-data/")
 # package_add_test_with_libraries(test_quantparams core/test_quantization_params ptensor core "${PROJECT_DIR}/test-data/")
 
 # Tensors
-package_add_test_with_libraries(test_ramtensor tensors/test_ramtensor ptensor tensors "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_buffertensor tensors/test_buffertensor ptensor tensors "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_romtensor tensors/test_romtensor ptensor tensors "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_ramtensor tensors/test_ramtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_buffertensor tensors/test_buffertensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_romtensor tensors/test_romtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 
 # Operators
-package_add_test_with_libraries(test_arith operators/test_arithmetic ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_matrix_ops operators/test_matrix ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_convolution_no_bias operators/test_convolution_nobias ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_convolution_bias operators/test_convolution_bias ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_arith operators/test_arithmetic.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_matrix_ops operators/test_matrix.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_convolution_no_bias operators/test_convolution_nobias.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_convolution_bias operators/test_convolution_bias.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 # package_add_test_with_libraries(test_dws_convolution operators/test_dws_convolution ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_relu operators/test_relu ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_maxpool operators/test_maxpool ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_avgpool operators/test_avgpool ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_squeeze operators/test_squeeze ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_argmax operators/test_argmax ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_argmin operators/test_argmin ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_reshape operators/test_reshape ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_relu operators/test_relu.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_maxpool operators/test_maxpool.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_avgpool operators/test_avgpool.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_squeeze operators/test_squeeze.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_argmax operators/test_argmax.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_argmin operators/test_argmin.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_reshape operators/test_reshape.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_dequantize operators/test_dequantize.cpp ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_quantize operators/test_quantize ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_quantize operators/test_quantize.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 # package_add_test_with_libraries(test_quant_dws_conv operators/test_quantized_dws_conv ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_quant_fully_connect_2 operators/test_quant_fully_connect_2 ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_fully_connect operators/test_fully_connected ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_sq_conv2d operators/test_sq_conv2d ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_sq_softmax operators/test_sq_softmax ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_sq_logistic operators/test_sq_logistic ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_quant_fully_connect_2 operators/test_quant_fully_connect_2.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_fully_connect operators/test_fully_connected.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_sq_conv2d operators/test_sq_conv2d.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_sq_softmax operators/test_sq_softmax.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_sq_logistic operators/test_sq_logistic.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 # package_add_test_with_libraries(test_sq_tanh operators/test_sq_tanh.cpp ptensor operators "${PROJECT_DIR}/test-data/")
-package_add_test_with_libraries(test_transpose operators/test_transpose ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_transpose operators/test_transpose.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Includes
 # package_add_test_with_libraries(test_top_include library/test_top_include ptensor library "${PROJECT_DIR}/test-data/")
@@ -77,4 +79,4 @@ package_add_test_with_libraries(test_transpose operators/test_transpose ptensor 
 # package_add_test_with_libraries(integration_test model/integration_test ptensor model "${PROJECT_DIR}/test-data/")
 
 #Error Handlers
-package_add_test_with_libraries(test_simple_error_handler error_handlers/test_errorhandler ptensor error_handlers "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_simple_error_handler error_handlers/test_errorhandler.cpp ptensor error_handlers "${PROJECT_DIR}/test-data/")
