@@ -1,5 +1,5 @@
-#ifndef UTENSOR_S_QUANTIZED_CONV2D_OPS_H
-#define UTENSOR_S_QUANTIZED_CONV2D_OPS_H
+#ifndef PTENSOR_S_QUANTIZED_CONV2D_OPS_H
+#define PTENSOR_S_QUANTIZED_CONV2D_OPS_H
 
 #include "context.hpp"
 #include "s_quantized_convolution_kernels.hpp"

@@ -49,6 +49,7 @@ class FixedTensorMap : public TensorMapInterface {
     //_map = {not_found};
   }
   virtual ~FixedTensorMap() {}
+ 
   /*
   SimpleNamedTensor& operator[](uint8_t i) override {
     return _map[i];
@@ -57,6 +58,7 @@ class FixedTensorMap : public TensorMapInterface {
     return _map[i];
   }
   */
+
   virtual SimpleNamedTensor& operator[](const pTensor::string& name) override {
     if (!has(name)) {
       return TensorMapInterface::not_found;

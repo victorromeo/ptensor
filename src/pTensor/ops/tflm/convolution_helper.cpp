@@ -65,7 +65,7 @@ void ComputePaddingHeightWidth(int stride_height, int stride_width,
   *out_height = ComputeOutSize(padding, in_height, filter_height, stride_height,
                                dilation_rate_height);
 
-  TfLitePaddingValues padding_values;
+  // TfLitePaddingValues padding_values;
   int offset = 0;
   *padding_height =
       ComputePaddingWithOffset(stride_height, dilation_rate_height, in_height,
@@ -88,4 +88,4 @@ uint16_t MatchingDim(TensorShape s0, uint8_t i0, TensorShape s1, uint8_t i1) {
 }
 
 } // TFLM
-} // uTensot
+} // pTensor

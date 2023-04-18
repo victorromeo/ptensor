@@ -125,6 +125,6 @@ void squantize_convolution_kernel(Tensor& out, const Tensor& in,
 } //Kernel
 
 } // TflmSymQuantOps
-} // uTensor
+} // pTensor
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef _UTENSOR_GEMMLOWP
-#define _UTENSOR_GEMMLOWP
+#ifndef _PTENSOR_GEMMLOWP
+#define _PTENSOR_GEMMLOWP
 #include <cstdint>
 
 #include "errorHandler.hpp"

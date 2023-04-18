@@ -1,5 +1,5 @@
-#ifndef UTENSOR_S_QUANTIZED_DWS_OPS_KERNELS_H
-#define UTENSOR_S_QUANTIZED_DWS_OPS_KERNELS_H
+#ifndef PTENSOR_S_QUANTIZED_DWS_OPS_KERNELS_H
+#define PTENSOR_S_QUANTIZED_DWS_OPS_KERNELS_H
 #include "context.hpp"
 #include "symmetric_quantization_utils.hpp"
 #include "tensor.hpp"

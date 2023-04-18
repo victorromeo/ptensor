@@ -32,9 +32,10 @@ bool localCircularArenaAllocatorBase::MetaHeader::has_handle(Handle* target) con
 }
 bool localCircularArenaAllocatorBase::MetaHeader::is_used() const { return is_active() && (get_len() > 0); }
 
-
 // Return the amount of free space at the tail
-uint32_t localCircularArenaAllocatorBase::tail_capacity(){};
+uint32_t localCircularArenaAllocatorBase::tail_capacity(){
+  return (uint32_t) 0;
+};
 
 size_t localCircularArenaAllocatorBase::find_header_associated_w_ptr(void* ptr) const {
   size_t i = 0;

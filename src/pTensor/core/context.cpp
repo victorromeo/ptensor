@@ -13,10 +13,22 @@ Context::Context()
       _ram_data_allocator(nullptr),
       _error_handler(nullptr) {}
 
-Context* __attribute__((weak)) Context::get_default_context() {
+#ifndef _MSC_VER
+// GCC and Clang support weak symbols
+__attribute__((weak)) Context* Context::get_default_context() {
   static Context ctx;
   return &ctx;
 }
+
+#else
+// MSVC doesn't support weak symbols
+Context* Context::get_default_context() {
+  static Context ctx;
+  return &ctx;
+}
+
+#endif
+
 AllocatorInterface* Context::get_metadata_allocator() {
   // TODO Throw error if this is null
   if (!_metadata_allocator) {
@@ -33,14 +45,17 @@ AllocatorInterface* Context::get_ram_data_allocator() {
   }
   return _ram_data_allocator;
 }
+
 void Context::set_metadata_allocator(AllocatorInterface* al) {
   // TODO handle cleanup if already set?
   _metadata_allocator = al;
 }
+
 void Context::set_ram_data_allocator(AllocatorInterface* al) {
   // TODO handle cleanup if already set?
   _ram_data_allocator = al;
 }
+
 void Context::register_tensor(TensorBase* tb) {}
 
 void Context::throwError(Error* err) {
@@ -51,9 +66,11 @@ void Context::throwError(Error* err) {
   pTensor_printf("[ERROR] an Error has occurred but no handler was set\n");
   //while(true) {}
 }
+
 void Context::notifyEvent(const Event& evt) {
   if (_error_handler) get_default_error_handler()->notify(evt);
 }
+
 void Context::set_ErrorHandler(ErrorHandler* errH) { _error_handler = errH; }
 
 // ErrorHandler default_err;

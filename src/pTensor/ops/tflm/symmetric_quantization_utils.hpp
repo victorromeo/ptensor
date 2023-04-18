@@ -1,5 +1,5 @@
-#ifndef UTENSOR_S_QUANTIZE_UTILS_H
-#define UTENSOR_S_QUANTIZE_UTILS_H
+#ifndef PTENSOR_S_QUANTIZE_UTILS_H
+#define PTENSOR_S_QUANTIZE_UTILS_H
 #include <cmath>
 #include <limits>
 

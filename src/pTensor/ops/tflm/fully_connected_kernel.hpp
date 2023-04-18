@@ -1,5 +1,5 @@
-#ifndef UTENSOR_S_QUANTIZED_FC_KERNELS_H
-#define UTENSOR_S_QUANTIZED_FC_KERNELS_H
+#ifndef PTENSOR_S_QUANTIZED_FC_KERNELS_H
+#define PTENSOR_S_QUANTIZED_FC_KERNELS_H
 
 #include "MatrixMultiplyOperator.hpp"
 #include "context.hpp"

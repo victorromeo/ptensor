@@ -1,5 +1,5 @@
-#ifndef UTENSOR_S_QUANTIZED_DWS_OPS_H
-#define UTENSOR_S_QUANTIZED_DWS_OPS_H
+#ifndef PTENSOR_S_QUANTIZED_DWS_OPS_H
+#define PTENSOR_S_QUANTIZED_DWS_OPS_H
 
 #include "context.hpp"
 #include "depthwise_separable_convolution_kernels.hpp"

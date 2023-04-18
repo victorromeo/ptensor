@@ -1,5 +1,5 @@
-#ifndef UTENSOR_S_QUANTIZED_CONV_OPS_HELPER_H
-#define UTENSOR_S_QUANTIZED_CONV_OPS_HELPER_H
+#ifndef PTENSOR_S_QUANTIZED_CONV_OPS_HELPER_H
+#define PTENSOR_S_QUANTIZED_CONV_OPS_HELPER_H
 #include "context.hpp"
 #include "symmetric_quantization_utils.hpp"
 
@@ -62,5 +62,5 @@ void ComputePaddingHeightWidth(int stride_height, int stride_width,
 uint16_t MatchingDim(TensorShape s0, uint8_t i0, TensorShape s1, uint8_t i1);
 
 } // TFLM
-} // uTensor
+} // pTensor
 #endif
