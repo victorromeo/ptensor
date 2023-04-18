@@ -45,7 +45,7 @@ namespace Fuseable {
 
 namespace ReferenceOperators {
 
-class InPlaceActivationFnc : public OperatorInterface<1, 0> {
+class InPlaceActivationFnc : public InPlaceOperatorInterface<1> {
  public:
   enum names_in : uint8_t { x };
 

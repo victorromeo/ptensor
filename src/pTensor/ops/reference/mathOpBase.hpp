@@ -68,7 +68,7 @@ void arg_min_max_kernel(Tensor& output, const Tensor& input, const Tensor& axis,
 
 namespace ReferenceOperators {
 
-class InPlaceFnc : public OperatorInterface<1, 0> {
+class InPlaceFnc : public InPlaceOperatorInterface<1> {
  public:
   enum names_in : uint8_t { x };
 
@@ -77,6 +77,7 @@ class InPlaceFnc : public OperatorInterface<1, 0> {
 };
 
 }
+
 }
 
 #endif

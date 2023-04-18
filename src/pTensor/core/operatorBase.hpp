@@ -37,6 +37,27 @@ class OperatorBase {
   virtual void compute() = 0;
 };
 
+template <size_t num_inputs>
+class InPlaceOperatorInterface : public OperatorBase {
+  protected:
+    FixedTensorMap<num_inputs> inputs;
+  
+  public:
+    InPlaceOperatorInterface() : OperatorBase() {}
+    virtual ~InPlaceOperatorInterface() {}
+  
+    // This will throw compile time errors if users provide the wrong number of
+    // inputs
+    InPlaceOperatorInterface& set_inputs(FixedTensorMap<num_inputs>&& in) {
+      inputs = in;
+      OperatorBase::set_inputs(&inputs);
+      return *this;
+    }
+  
+  protected:
+    virtual void compute() = 0;
+};
+
 template <size_t num_inputs, size_t num_outputs>
 class OperatorInterface : public OperatorBase {
  protected:
