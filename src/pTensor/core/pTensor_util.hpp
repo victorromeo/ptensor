@@ -1,17 +1,25 @@
 #ifndef PTENSOR_UTIL
 #define PTENSOR_UTIL
 #include <stdint.h>
-#include <stdio.h>
 
 //#include <vector>
 
 // #define MAX(A, B) ((A > B)? A:B)
 
 
+// Diagnostics are compiled out entirely unless ENABLE_PRINTING is defined, so
+// a release build never links stdio.
 #ifdef ENABLE_PRINTING
+#include <stdio.h>
 #define pTensor_printf(...) printf(__VA_ARGS__)
+#define pTensor_flush() fflush(stdout)
 #else
-#define pTensor_printf(...) /*DUMMY*/
+#define pTensor_printf(...) \
+  do {                      \
+  } while (0)
+#define pTensor_flush() \
+  do {                  \
+  } while (0)
 #endif
 
 void return_error(int ret_val);
@@ -38,7 +46,7 @@ void return_error(int ret_val);
 #define DEBUG(MSG, ...)         \
   {                             \
     pTensor_printf(MSG, ##__VA_ARGS__); \
-    fflush(stdout);             \
+    pTensor_flush();            \
   }
 
 #else  // MBED_CONF_APP_DEBUG_MSG
@@ -57,7 +65,7 @@ void ptensor_exit(void);
   {                                                             \
     pTensor_printf("[Error] %s:%d @%s ", __FILE__, __LINE__, __func__); \
     pTensor_printf(MSG, ##__VA_ARGS__);                                 \
-    fflush(stdout);                                             \
+    pTensor_flush();                                            \
     ptensor_exit();                                             \
   }
 

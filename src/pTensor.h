@@ -1,6 +1,11 @@
 #ifndef __pTensor_H
 #define __pTensor_H
 /*
+ * Build configuration (which optional features were compiled in)
+ */
+#include "pTensor/ptensor_config.h"
+
+/*
  * Core bits
  */
 // This one selects platform specific stuff. probably should come first
@@ -17,11 +22,13 @@
  * Operators
  */
 
+#if PTENSOR_WITH_QUANTIZED_OPS
 #include "pTensor/ops/tflm/convolution2d.hpp"
 #include "pTensor/ops/tflm/depthwise_separable_convolution.hpp"
 #include "pTensor/ops/tflm/fully_connected.hpp"
 #include "pTensor/ops/tflm/DequantizeOperator.hpp"
 #include "pTensor/ops/tflm/QuantizeOperator.hpp"
+#endif
 
 #include "pTensor/ops/reference/TanhOperator.hpp"
 
@@ -56,7 +63,9 @@
 /*
  * Error Handlers
  */
+#if PTENSOR_WITH_SIMPLE_ERROR_HANDLER
 #include "pTensor/errorHandlers/SimpleErrorHandler.hpp"
+#endif
 
 #endif
 

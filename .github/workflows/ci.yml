@@ -44,3 +44,41 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: ctest --test-dir build --output-on-failure --timeout 120
+
+  cortex-m4:
+    name: Cortex-M4 cross build + size report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install arm-none-eabi toolchain
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+      - name: Build (all features)
+        run: |
+          cmake -S . -B build-m4 -DCMAKE_BUILD_TYPE=MinSizeRel -DPTENSOR_SIZE_PROBE=ON \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi-cortex-m4.cmake
+          cmake --build build-m4 -j"$(nproc)"
+      - name: Build (minimal features)
+        run: |
+          cmake -S . -B build-m4-min -DCMAKE_BUILD_TYPE=MinSizeRel -DPTENSOR_SIZE_PROBE=ON \
+            -DPTENSOR_WITH_QUANTIZED_OPS=OFF -DPTENSOR_WITH_SIMPLE_ERROR_HANDLER=OFF \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi-cortex-m4.cmake
+          cmake --build build-m4-min -j"$(nproc)"
+      - name: Size report
+        run: |
+          {
+            echo '### Cortex-M4 size probe (MinSizeRel)'
+            echo '```'
+            arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe
+      - name: Library must not call malloc/free
+        run: |
+          arm-none-eabi-objdump -drC build-m4/examples/size_probe/ptensor_size_probe \
+            | awk '/>:$/{fn=$0} /bl.*<(malloc|free|_malloc_r|_free_r)>/{print fn}' \
+            | grep -v -E '__register_exitproc|__call_exitprocs|_exit|atexit' > heap_callers.txt || true
+          if [ -s heap_callers.txt ]; then
+            echo "Heap is used by:"; cat heap_callers.txt; exit 1
+          fi

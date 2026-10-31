@@ -1,0 +1,2 @@
+add_executable(ptensor_size_probe main.cpp)
+target_link_libraries(ptensor_size_probe ptensor)

@@ -284,3 +284,70 @@ TEST(HandleReference, copy_copy) {
   }
 
 }
+
+// The block table lives inside the allocator object; it must never touch the
+// heap and must report a clean error when it is full.
+TEST(ArenaAllocator, block_table_full_reports_error) {
+  SimpleErrorHandler errH(50);
+  bool table_full = false;
+  errH.set_onError([&table_full](Error* err) {
+    if (*err == ArenaBlockTableFullError()) table_full = true;
+  });
+  Context::get_default_context()->set_ErrorHandler(&errH);
+
+  localCircularArenaAllocator<256, uint16_t, 4> alloc;
+  EXPECT_EQ(alloc.max_blocks(), 4u);
+  // Bound blocks survive rebalancing, so a fifth bound block cannot fit.
+  Handle handles[4];
+  for (int i = 0; i < 4; ++i) {
+    void* p = alloc.allocate(8);
+    ASSERT_NE(p, nullptr);
+    alloc.bind(p, &handles[i]);
+  }
+  EXPECT_EQ(alloc.num_blocks(), 4u);
+  void* p = alloc.allocate(8);
+  EXPECT_EQ(p, nullptr);
+  EXPECT_TRUE(table_full);
+  for (int i = 0; i < 4; ++i) alloc.unbind(*handles[i], &handles[i]);
+  Context::get_default_context()->set_ErrorHandler(nullptr);
+}
+
+TEST(ArenaAllocator, unbound_blocks_are_reclaimed_when_table_fills) {
+  SimpleErrorHandler errH(50);
+  bool got_error = false;
+  errH.set_onError([&got_error](Error*) { got_error = true; });
+  Context::get_default_context()->set_ErrorHandler(&errH);
+
+  localCircularArenaAllocator<256, uint16_t, 4> alloc;
+  // Far more short-lived allocations than table slots.
+  for (int i = 0; i < 100; ++i) {
+    void* p = alloc.allocate(16);
+    ASSERT_NE(p, nullptr) << "allocation " << i;
+    memset(p, i & 0xff, 16);
+    alloc.deallocate(p);
+  }
+  EXPECT_LE(alloc.num_blocks(), 4u);
+  EXPECT_FALSE(got_error);
+  Context::get_default_context()->set_ErrorHandler(nullptr);
+}
+
+TEST(ArenaAllocator, bound_data_survives_rebalance) {
+  SimpleErrorHandler errH(50);
+  Context::get_default_context()->set_ErrorHandler(&errH);
+
+  localCircularArenaAllocator<128, uint16_t, 4> alloc;
+  void* scratch = alloc.allocate(32);  // unbound, will be dropped
+  void* keep = alloc.allocate(16);
+  ASSERT_NE(scratch, nullptr);
+  ASSERT_NE(keep, nullptr);
+  Handle h(keep);
+  alloc.bind(keep, &h);
+  for (int i = 0; i < 16; ++i) static_cast<uint8_t*>(keep)[i] = i * 3;
+  alloc.rebalance();
+  uint8_t* moved = static_cast<uint8_t*>(*h);
+  ASSERT_NE(moved, nullptr);
+  EXPECT_EQ(alloc.num_blocks(), 1u);
+  for (int i = 0; i < 16; ++i) EXPECT_EQ(moved[i], i * 3);
+  alloc.unbind(moved, &h);
+  Context::get_default_context()->set_ErrorHandler(nullptr);
+}

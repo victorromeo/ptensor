@@ -19,6 +19,12 @@ class ModelBase {
   void set_name(pTensor::string _name);
   virtual ~ModelBase();
 
+  // Operators and models are static or stack objects, never heap objects.
+  // Deleting operator new, and giving the class its own (no-op) operator
+  // delete for the virtual destructor, keeps malloc/free out of the binary.
+  static void* operator new(size_t) = delete;
+  static void operator delete(void*) {}
+
   void eval();
 
  protected:

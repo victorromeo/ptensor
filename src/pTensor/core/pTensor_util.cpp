@@ -9,8 +9,8 @@ void return_error(int ret_val) {
   if (ret_val) {
     pTensor_printf(" [**Failure**] %d\r\n", ret_val);
     pTensor_printf("Exiting...\r\n");
-    fflush(stdout);
-    exit(-1);
+    pTensor_flush();
+    ptensor_exit();
   } else {
     pTensor_printf("  [DONE]\r\n");
   }
@@ -65,9 +65,12 @@ void init_env() {
 }
 #endif
 
+// On bare-metal targets there is nothing to exit to, and calling exit() would
+// drag in the C runtime's atexit/stdio teardown, so just halt.
 void ptensor_exit(void) {
-#ifndef __EMSCRIPTEN__
+#if !defined(PTENSOR_BARE_METAL) && !defined(__EMSCRIPTEN__)
   exit(-1);
 #endif
-  while(true){}
+  while (true) {
+  }
 }

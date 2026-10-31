@@ -1,14 +1,20 @@
 #ifndef PTENSOR_ARENA_ALLOCATOR_HPP
 #define PTENSOR_ARENA_ALLOCATOR_HPP
-#include <algorithm>  // for sort function
-#include <cstdio>
-#include <forward_list>
-#include <memory>
-#include <vector>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include "pTensor/core/context.hpp"
 #include "pTensor/core/memoryManagementInterface.hpp"
 #include "pTensor/core/tensor.hpp"
+
+// Maximum number of live blocks an arena tracks when the template argument is
+// not given. Each block costs one MetaHeader (12 bytes on 32-bit targets) of
+// RAM inside the allocator object. Override per allocator with the third
+// template parameter, or globally with -DPTENSOR_ARENA_DEFAULT_MAX_BLOCKS=N.
+#ifndef PTENSOR_ARENA_DEFAULT_MAX_BLOCKS
+#define PTENSOR_ARENA_DEFAULT_MAX_BLOCKS 32
+#endif
 
 namespace pTensor {
 
@@ -28,6 +34,7 @@ DECLARE_EVENT(localCircularArenaAllocatorConstructed);
 DECLARE_ERROR(InvalidBoundRegionState);
 DECLARE_ERROR(MetaHeaderNotBound);
 DECLARE_ERROR(InvalidAlignmentAllocation);
+DECLARE_ERROR(ArenaBlockTableFullError);
 
 template <typename T>
 constexpr size_t meta_addressable_space() {
@@ -40,8 +47,7 @@ constexpr size_t meta_addressable_space() {
  * Break this up into two classes to not duplicate code
  */
 class localCircularArenaAllocatorBase : public AllocatorInterface {
- private:
-
+ protected:
   class MetaHeader {
    public:
     uint32_t meta_data;
@@ -65,17 +71,23 @@ class localCircularArenaAllocatorBase : public AllocatorInterface {
   };
 
  protected:
-  uint32_t capacity;
   uint8_t* _buffer;
   size_t size;
+  uint32_t capacity;
   uint8_t* cursor;
-  std::vector<MetaHeader> _headers;
+  // Block table. Storage is owned by the derived class so it can be sized at
+  // compile time; no heap allocation happens anywhere in the allocator.
+  MetaHeader* _headers;
+  size_t _num_headers;
+  size_t _max_headers;
 
  private:
   // Return the amount of free space at the tail
   uint32_t tail_capacity();
 
-  size_t find_header_associated_w_ptr(void* ptr) const;
+  MetaHeader* headers_begin() const { return _headers; }
+  MetaHeader* headers_end() const { return _headers + _num_headers; }
+  bool push_header(const MetaHeader& hdr);
   // This is just for reference
   MetaHeader& _read_header(void* ptr);
 
@@ -109,7 +121,14 @@ class localCircularArenaAllocatorBase : public AllocatorInterface {
   virtual void _deallocate(void* ptr);
 
  public:
-  localCircularArenaAllocatorBase(uint8_t* buffer, size_t size) ;
+  localCircularArenaAllocatorBase(uint8_t* buffer, size_t size,
+                                  MetaHeader* headers, size_t max_headers);
+
+  // Arenas are static or stack objects and never live on the heap. Deleting
+  // operator new, and giving the class its own (no-op) operator delete for the
+  // virtual destructor, keeps malloc/free out of bare-metal builds.
+  static void* operator new(size_t) = delete;
+  static void operator delete(void*) {}
   virtual ~localCircularArenaAllocatorBase() ;
 
   /** This implementation of rebalance shifts all allocated chunks to the end of
@@ -128,10 +147,13 @@ class localCircularArenaAllocatorBase : public AllocatorInterface {
 
  public:
   // Testing bits, attribute out later
-  uint32_t internal_header_unit_size() const; 
+  uint32_t internal_header_unit_size() const;
+  size_t num_blocks() const { return _num_headers; }
+  size_t max_blocks() const { return _max_headers; }
 };
 
-template <size_t sizeT, typename T = uint16_t>
+template <size_t sizeT, typename T = uint16_t,
+          size_t MaxBlocks = PTENSOR_ARENA_DEFAULT_MAX_BLOCKS>
 class localCircularArenaAllocator : public localCircularArenaAllocatorBase {
   private:
   static constexpr size_t size = sizeT;
@@ -141,14 +163,17 @@ class localCircularArenaAllocator : public localCircularArenaAllocatorBase {
                 "[ERROR](localCircularArenaAllocator) T not large enoughn to "
                 "address size in Arena. Attempted to create Arena with (size, "
                 "T) mismatch, try increasing T to uint32_t");
+  static_assert(MaxBlocks > 0, "Arena must be able to track at least one block");
   private:
     // Delegate this over to the implementation
     uint8_t _buffer[size];
+    MetaHeader _header_storage[MaxBlocks];
 
   public:
-    localCircularArenaAllocator() : localCircularArenaAllocatorBase(_buffer, size), _buffer{} {
-      //memset(_buffer, 0, size);
-    }
+    localCircularArenaAllocator()
+        : localCircularArenaAllocatorBase(_buffer, size, _header_storage,
+                                          MaxBlocks),
+          _buffer{} {}
     virtual ~localCircularArenaAllocator() {}
 
 };

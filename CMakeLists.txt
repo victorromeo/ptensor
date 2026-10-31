@@ -7,12 +7,26 @@ set(CMAKE_CXX_STANDARD 11)
 # TODO be smarter about code coverage bits
 # https://github.com/codecov/example-cpp11-cmake
 
-if (UNIX)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fno-rtti")
-endif (UNIX)
-if (MSVC)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-endif (MSVC)
+# pTensor never needs RTTI. Disable it for every GCC/Clang build, including
+# bare-metal cross builds (which are not UNIX), since RTTI tables cost flash.
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+elseif (MSVC)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GR-")
+endif()
+
+#### Feature selection #########################################################
+# Everything that is not needed by a target project can be left out. Operators
+# are header-only templates, so an operator you never instantiate costs nothing;
+# these switches cover the parts that are compiled into the library.
+if(CMAKE_SYSTEM_NAME STREQUAL "Generic")
+  set(_ptensor_bare_metal_default ON)
+else()
+  set(_ptensor_bare_metal_default OFF)
+endif()
+option(PTENSOR_BARE_METAL "Target has no OS: never call exit() or use stdio" ${_ptensor_bare_metal_default})
+option(PTENSOR_WITH_QUANTIZED_OPS "Build the int8 TFLM-compatible quantized operators (conv, depthwise conv, fully connected, quantize, dequantize)" ON)
+option(PTENSOR_WITH_SIMPLE_ERROR_HANDLER "Build SimpleErrorHandler (uses std::deque and std::function)" ON)
 
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 if(ENABLE_COVERAGE)
@@ -48,6 +62,10 @@ if(PACKAGE_TESTS)
     enable_testing()
     include(GoogleTest)
     add_subdirectory(tests)
+endif()
+option(PTENSOR_SIZE_PROBE "Build a minimal app used to measure code size" OFF)
+if(PTENSOR_SIZE_PROBE)
+  add_subdirectory(examples/size_probe)
 endif()
 if(PACKAGE_TUTORIALS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
