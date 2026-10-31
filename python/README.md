@@ -46,9 +46,17 @@ Available:
   `elu`, `clip`, and `unary(name, x)` for everything in `ptensor.UNARY_OPS`
   (selu, hard_sigmoid, hard_swish, swish, gelu, softplus, softsign, abs, neg,
   square, sqrt, rsqrt, exp, log, floor, ceil, round, sin, cos)
-- Quantisation: `quantize`, `dequantize`, `fully_connected_int8`
+- Quantisation (TFLite int8 arithmetic): `quantize`, `dequantize`,
+  `fully_connected_int8` (per-tensor or per-channel weights), `conv2d_int8`,
+  `maxpool2d_int8`, `softmax_int8`
 - Packing: `pack_bits`, `decode_packed`, `packed_size`, `float_to_half`,
   `half_to_float`
+
+## MNIST example
+
+`examples/mnist/mnist_ptensor.py` runs a full-integer int8 TFLite MNIST model
+through these bindings and checks it against TFLite. See
+[examples/mnist](../examples/mnist/README.md).
 
 ## Tests
 

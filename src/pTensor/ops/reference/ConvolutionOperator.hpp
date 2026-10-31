@@ -433,9 +433,9 @@ namespace Conv2dConstants {
 
   // https://github.com/tensorflow/tensorflow/blob/28d1ad34bb59e3e1631b5807eebc46563ef3382c/tensorflow/lite/kernels/internal/reference/conv.h#L56-L57
   constexpr int input_batch_dim         = 0;
-  constexpr int input_height_dim        = 0;
-  constexpr int input_witdh_dim         = 0;
-  constexpr int input_channel_dim       = 0;
+  constexpr int input_height_dim        = 1;
+  constexpr int input_witdh_dim         = 2;
+  constexpr int input_channel_dim       = 3;
 
   constexpr int filter_height_dim       = 1;
   constexpr int filter_width_dim        = 2;

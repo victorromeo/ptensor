@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <vector>
 
 #include "pTensor/allocators/arenaAllocator.hpp"
 #include "pTensor/core/context.hpp"
@@ -26,6 +27,7 @@
 #if PTENSOR_WITH_QUANTIZED_OPS
 #include "pTensor/ops/tflm/DequantizeOperator.hpp"
 #include "pTensor/ops/tflm/QuantizeOperator.hpp"
+#include "pTensor/ops/tflm/convolution2d.hpp"
 #include "pTensor/ops/tflm/fully_connected.hpp"
 #endif
 
@@ -129,10 +131,10 @@ int run_unary_f32(const float* in, float* out, uint32_t count) {
   return s.status();
 }
 
-template <typename PoolOp>
-int run_pool_f32(const float* in, uint32_t n, uint32_t h, uint32_t w,
-                 uint32_t c, uint32_t kh, uint32_t kw, uint32_t sh, uint32_t sw,
-                 int padding, float* out) {
+template <typename PoolOp, typename T>
+int run_pool(const T* in, ttype type, uint32_t n, uint32_t h, uint32_t w,
+             uint32_t c, uint32_t kh, uint32_t kw, uint32_t sh, uint32_t sw,
+             int padding, T* out) {
   if (!in || !out || !fits_dim(n) || !fits_dim(h) || !fits_dim(w) ||
       !fits_dim(c) || !fits_dim(kh) || !fits_dim(kw) || !fits_dim(sh) ||
       !fits_dim(sw) || !valid_padding(padding))
@@ -142,8 +144,8 @@ int run_pool_f32(const float* in, uint32_t n, uint32_t h, uint32_t w,
   if (!oh || !ow) return invalid();
   Session s;
   {
-    Tensor tin = new RomTensor({(uint16_t)n, (uint16_t)h, (uint16_t)w, (uint16_t)c}, flt, in);
-    Tensor tout = new BufferTensor({(uint16_t)n, (uint16_t)oh, (uint16_t)ow, (uint16_t)c}, flt, out);
+    Tensor tin = new RomTensor({(uint16_t)n, (uint16_t)h, (uint16_t)w, (uint16_t)c}, type, in);
+    Tensor tout = new BufferTensor({(uint16_t)n, (uint16_t)oh, (uint16_t)ow, (uint16_t)c}, type, out);
     PoolOp op({(uint16_t)kh, (uint16_t)kw}, {1, (uint16_t)sh, (uint16_t)sw, 1},
               static_cast<Padding>(padding));
     op.set_inputs({{PoolOp::in, tin}}).set_outputs({{PoolOp::out, tout}}).eval();
@@ -199,6 +201,20 @@ int run_unary(const float* in, float* out, uint32_t count, const Fn& fn) {
     op.set_inputs({{Op::in, ti}}).set_outputs({{Op::out, to}}).eval();
   }
   return s.status();
+}
+
+// pTensor dimensions are uint16_t, so a flat elementwise call over more than
+// 65535 values is split into chunks. `f(offset, n)` processes one chunk.
+const uint32_t kMaxDim = 0xFFFFu;
+template <typename F>
+int chunked(uint32_t count, uint32_t granule, const F& f) {
+  const uint32_t step = (kMaxDim / granule) * granule;
+  for (uint32_t off = 0; off < count; off += step) {
+    const uint32_t n = count - off < step ? count - off : step;
+    const int st = f(off, n);
+    if (st != PTENSOR_OK) return st;
+  }
+  return PTENSOR_OK;
 }
 
 }  // namespace
@@ -267,6 +283,10 @@ int ptensor_fully_connected_f32(const float* in, const float* weights,
 
 int ptensor_add_f32(const float* a, const float* b, float* out,
                     uint32_t count) {
+  if (a && b && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_add_f32(a + o, b + o, out + o, n);
+    });
   if (!a || !b || !out || !fits_dim(count)) return invalid();
   Session s;
   {
@@ -282,15 +302,31 @@ int ptensor_add_f32(const float* a, const float* b, float* out,
 }
 
 int ptensor_relu_f32(const float* in, float* out, uint32_t count) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_relu_f32(in + o, out + o, n);
+    });
   return run_unary_f32<ReLUOperator<float> >(in, out, count);
 }
 int ptensor_relu6_f32(const float* in, float* out, uint32_t count) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_relu6_f32(in + o, out + o, n);
+    });
   return run_unary_f32<ReLU6Operator<float> >(in, out, count);
 }
 int ptensor_sigmoid_f32(const float* in, float* out, uint32_t count) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_sigmoid_f32(in + o, out + o, n);
+    });
   return run_unary_f32<LogisticOperator<float> >(in, out, count);
 }
 int ptensor_tanh_f32(const float* in, float* out, uint32_t count) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_tanh_f32(in + o, out + o, n);
+    });
   if (!in || !out || !fits_dim(count)) return invalid();
   Session s;
   {
@@ -354,15 +390,23 @@ int ptensor_maxpool2d_f32(const float* in, uint32_t n, uint32_t h, uint32_t w,
                           uint32_t c, uint32_t kh, uint32_t kw,
                           uint32_t stride_h, uint32_t stride_w, int padding,
                           float* out) {
-  return run_pool_f32<MaxPoolOperator<float> >(in, n, h, w, c, kh, kw,
-                                               stride_h, stride_w, padding, out);
+  return run_pool<MaxPoolOperator<float> >(in, flt, n, h, w, c, kh, kw,
+                                           stride_h, stride_w, padding, out);
+}
+int ptensor_maxpool2d_i8(const int8_t* in, uint32_t n, uint32_t h, uint32_t w,
+                         uint32_t c, uint32_t kh, uint32_t kw,
+                         uint32_t stride_h, uint32_t stride_w, int padding,
+                         int8_t* out) {
+  // Max is monotonic, so int8 pooling needs no requantization.
+  return run_pool<MaxPoolOperator<int8_t> >(in, i8, n, h, w, c, kh, kw,
+                                            stride_h, stride_w, padding, out);
 }
 int ptensor_avgpool2d_f32(const float* in, uint32_t n, uint32_t h, uint32_t w,
                           uint32_t c, uint32_t kh, uint32_t kw,
                           uint32_t stride_h, uint32_t stride_w, int padding,
                           float* out) {
-  return run_pool_f32<AvgPoolOperator<float> >(in, n, h, w, c, kh, kw,
-                                               stride_h, stride_w, padding, out);
+  return run_pool<AvgPoolOperator<float> >(in, flt, n, h, w, c, kh, kw,
+                                           stride_h, stride_w, padding, out);
 }
 
 int ptensor_binary_f32(int op, const float* a, const uint32_t* a_shape,
@@ -402,6 +446,10 @@ int ptensor_binary_f32(int op, const float* a, const uint32_t* a_shape,
 
 int ptensor_unary_f32(int op, const float* in, float* out, uint32_t count,
                       float p0, float p1) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_unary_f32(op, in + o, out + o, n, p0, p1);
+    });
   if (!in || !out || !fits_dim(count)) return invalid();
   using namespace activations;
   switch (op) {
@@ -437,6 +485,12 @@ int ptensor_batchnorm_f32(const float* in, uint32_t count, uint32_t channels,
                           const float* mean, const float* variance,
                           const float* gamma, const float* beta, float epsilon,
                           float* out) {
+  if (in && out && channels && fits_dim(channels) && count % channels == 0 &&
+      count / channels > kMaxDim)
+    return chunked(count, channels, [&](uint32_t o, uint32_t n) {
+      return ptensor_batchnorm_f32(in + o, n, channels, mean, variance, gamma,
+                                   beta, epsilon, out + o);
+    });
   if (!in || !mean || !variance || !gamma || !beta || !out ||
       !fits_dim(channels) || count % channels != 0 ||
       !fits_dim(count / channels) || !(epsilon >= 0))
@@ -623,6 +677,10 @@ int ptensor_gru_cell_f32(const float* x, const float* h, const float* W,
 #if PTENSOR_WITH_QUANTIZED_OPS
 int ptensor_quantize_i8(const float* in, int8_t* out, uint32_t count,
                         float scale, int32_t zero_point) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_quantize_i8(in + o, out + o, n, scale, zero_point);
+    });
   if (!in || !out || !fits_dim(count) || !(scale > 0)) return invalid();
   Session s;
   {
@@ -638,6 +696,10 @@ int ptensor_quantize_i8(const float* in, int8_t* out, uint32_t count,
 
 int ptensor_dequantize_i8(const int8_t* in, float* out, uint32_t count,
                           float scale, int32_t zero_point) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_dequantize_i8(in + o, out + o, n, scale, zero_point);
+    });
   if (!in || !out || !fits_dim(count) || !(scale > 0)) return invalid();
   Session s;
   {
@@ -685,6 +747,101 @@ int ptensor_fully_connected_i8(const int8_t* in, float in_scale, int32_t in_zp,
   }
   return s.status();
 }
+
+int ptensor_fully_connected_i8_pc(const int8_t* in, float in_scale,
+                                  int32_t in_zp, const int8_t* weights,
+                                  const float* w_scales, const int32_t* bias,
+                                  int8_t* out, float out_scale, int32_t out_zp,
+                                  uint32_t batch, uint32_t in_features,
+                                  uint32_t out_features, int activation) {
+  if (!in || !weights || !w_scales || !out || !fits_dim(batch) ||
+      !fits_dim(in_features) || !fits_dim(out_features) ||
+      !valid_activation(activation) || !(in_scale > 0) || !(out_scale > 0))
+    return invalid();
+  for (uint32_t i = 0; i < out_features; ++i)
+    if (!(w_scales[i] > 0)) return invalid();
+  if (out_features == 1)
+    return ptensor_fully_connected_i8(in, in_scale, in_zp, weights,
+                                      w_scales[0], bias, out, out_scale,
+                                      out_zp, batch, in_features, out_features,
+                                      activation);
+  std::vector<int32_t> zps(out_features, 0);
+  Session s;
+  {
+    typedef TflmSymQuantOps::FullyConnectedOperator<int8_t> FC;
+    Tensor tin = new RomTensor({(uint16_t)batch, (uint16_t)in_features}, i8, in);
+    tin->set_quantization_params(PerTensorQuantizationParams(in_zp, in_scale));
+    Tensor tw = new RomTensor({(uint16_t)in_features, (uint16_t)out_features}, i8, weights);
+    tw->set_quantization_params(
+        PerChannelQuantizationParams(zps.data(), w_scales, (int)out_features));
+    Tensor tout = new BufferTensor({(uint16_t)batch, (uint16_t)out_features}, i8, out);
+    tout->set_quantization_params(PerTensorQuantizationParams(out_zp, out_scale));
+    FC op(static_cast<TFLM::TfLiteFusedActivation>(activation));
+    if (bias) {
+      Tensor tb = new RomTensor({(uint16_t)out_features}, i32, bias);
+      op.set_inputs({{FC::input, tin}, {FC::filter, tw}, {FC::bias, tb}})
+          .set_outputs({{FC::output, tout}})
+          .eval();
+    } else {
+      op.set_inputs({{FC::input, tin}, {FC::filter, tw}})
+          .set_outputs({{FC::output, tout}})
+          .eval();
+    }
+  }
+  return s.status();
+}
+
+int ptensor_conv2d_i8(const int8_t* in, uint32_t n, uint32_t h, uint32_t w,
+                      uint32_t c, float in_scale, int32_t in_zp,
+                      const int8_t* filter, uint32_t out_c, uint32_t kh,
+                      uint32_t kw, const float* filter_scales,
+                      uint32_t n_filter_scales, const int32_t* bias,
+                      uint32_t stride_h, uint32_t stride_w, int padding,
+                      int activation, int8_t* out, float out_scale,
+                      int32_t out_zp) {
+  if (!in || !filter || !filter_scales || !out || !fits_dim(n) ||
+      !fits_dim(h) || !fits_dim(w) || !fits_dim(c) || !fits_dim(out_c) ||
+      !fits_dim(kh) || !fits_dim(kw) || !fits_dim(stride_h) ||
+      !fits_dim(stride_w) || !valid_padding(padding) ||
+      !valid_activation(activation) || !(in_scale > 0) || !(out_scale > 0) ||
+      (n_filter_scales != 1 && n_filter_scales != out_c))
+    return invalid();
+  for (uint32_t i = 0; i < n_filter_scales; ++i)
+    if (!(filter_scales[i] > 0)) return invalid();
+  const uint32_t oh = ptensor_conv_output_size(h, kh, stride_h, padding);
+  const uint32_t ow = ptensor_conv_output_size(w, kw, stride_w, padding);
+  if (!oh || !ow) return invalid();
+  // The TFLM kernel always reads a bias; use zeros when there is none.
+  std::vector<int32_t> zero_bias;
+  if (!bias) {
+    zero_bias.assign(out_c, 0);
+    bias = zero_bias.data();
+  }
+  std::vector<int32_t> zps(n_filter_scales, 0);
+  Session s;
+  {
+    typedef TflmSymQuantOps::Conv2dOperator<int8_t> Op;
+    Tensor tin = new RomTensor({(uint16_t)n, (uint16_t)h, (uint16_t)w, (uint16_t)c}, i8, in);
+    tin->set_quantization_params(PerTensorQuantizationParams(in_zp, in_scale));
+    Tensor tf = new RomTensor({(uint16_t)out_c, (uint16_t)kh, (uint16_t)kw, (uint16_t)c}, i8, filter);
+    if (n_filter_scales == 1)
+      tf->set_quantization_params(PerTensorQuantizationParams(0, filter_scales[0]));
+    else
+      tf->set_quantization_params(PerChannelQuantizationParams(
+          zps.data(), filter_scales, (int)n_filter_scales));
+    Tensor tb = new RomTensor({(uint16_t)out_c}, i32, bias);
+    Tensor tout = new BufferTensor({(uint16_t)n, (uint16_t)oh, (uint16_t)ow, (uint16_t)out_c}, i8, out);
+    tout->set_quantization_params(PerTensorQuantizationParams(out_zp, out_scale));
+    const uint16_t strides[2] = {(uint16_t)stride_h, (uint16_t)stride_w};
+    const uint16_t dilation[2] = {1, 1};
+    Op op(strides, static_cast<Padding>(padding), dilation,
+          static_cast<TFLM::TfLiteFusedActivation>(activation));
+    op.set_inputs({{Op::in, tin}, {Op::filter, tf}, {Op::bias, tb}})
+        .set_outputs({{Op::out, tout}})
+        .eval();
+  }
+  return s.status();
+}
 #else
 int ptensor_quantize_i8(const float*, int8_t*, uint32_t, float, int32_t) {
   return invalid();
@@ -695,6 +852,18 @@ int ptensor_dequantize_i8(const int8_t*, float*, uint32_t, float, int32_t) {
 int ptensor_fully_connected_i8(const int8_t*, float, int32_t, const int8_t*,
                                float, const int32_t*, int8_t*, float, int32_t,
                                uint32_t, uint32_t, uint32_t, int) {
+  return invalid();
+}
+int ptensor_fully_connected_i8_pc(const int8_t*, float, int32_t,
+                                  const int8_t*, const float*, const int32_t*,
+                                  int8_t*, float, int32_t, uint32_t, uint32_t,
+                                  uint32_t, int) {
+  return invalid();
+}
+int ptensor_conv2d_i8(const int8_t*, uint32_t, uint32_t, uint32_t, uint32_t,
+                      float, int32_t, const int8_t*, uint32_t, uint32_t,
+                      uint32_t, const float*, uint32_t, const int32_t*,
+                      uint32_t, uint32_t, int, int, int8_t*, float, int32_t) {
   return invalid();
 }
 #endif

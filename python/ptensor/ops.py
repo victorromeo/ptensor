@@ -202,11 +202,23 @@ def dequantize(q, scale, zero_point):
     return out
 
 
+def _scales(scale, channels, name):
+    """Return (float32 array, count) for a per-tensor or per-channel scale."""
+    a = np.ascontiguousarray(np.atleast_1d(scale), dtype=np.float32).reshape(-1)
+    if a.size not in (1, channels):
+        raise ValueError("%s must be a scalar or have %d entries" % (name, channels))
+    if not np.all(a > 0):
+        raise ValueError("%s must be positive" % name)
+    return a, a.size
+
+
 def fully_connected_int8(x, x_scale, x_zero_point, weights, w_scale, bias,
                          out_scale, out_zero_point, activation=None):
     """TFLite-compatible int8 fully connected layer.
 
-    weights: int8 [in, out], symmetric per-tensor (zero point 0).
+    weights: int8 [in, out], symmetric (zero point 0).
+    w_scale: a scalar (per-tensor) or one scale per output channel, which is
+    what TFLite produces for int8 dense layers.
     bias: int32 [out] with scale x_scale * w_scale, or None.
     """
     x = _arr(np.atleast_2d(x), np.int8)
@@ -214,13 +226,86 @@ def fully_connected_int8(x, x_scale, x_zero_point, weights, w_scale, bias,
     if w.ndim != 2 or x.shape[1] != w.shape[0]:
         raise ValueError("expects x[batch,in] and weights[in,out]")
     b = None if bias is None else _arr(bias, np.int32).reshape(-1)
+    if b is not None and b.shape[0] != w.shape[1]:
+        raise ValueError("bias must have out_features elements")
+    scales, n_scales = _scales(w_scale, w.shape[1], "w_scale")
     out = np.empty((x.shape[0], w.shape[1]), np.int8)
-    _check("fully_connected_int8", lib.ptensor_fully_connected_i8(
-        _ptr(x, ctypes.c_int8), x_scale, x_zero_point, _ptr(w, ctypes.c_int8),
-        w_scale, _opt_ptr(b, ctypes.c_int32), _ptr(out, ctypes.c_int8),
-        out_scale, out_zero_point, x.shape[0], x.shape[1], w.shape[1],
-        _activation(activation)))
+    if n_scales == 1:
+        status = lib.ptensor_fully_connected_i8(
+            _ptr(x, ctypes.c_int8), x_scale, x_zero_point, _ptr(w, ctypes.c_int8),
+            float(scales[0]), _opt_ptr(b, ctypes.c_int32), _ptr(out, ctypes.c_int8),
+            out_scale, out_zero_point, x.shape[0], x.shape[1], w.shape[1],
+            _activation(activation))
+    else:
+        status = lib.ptensor_fully_connected_i8_pc(
+            _ptr(x, ctypes.c_int8), x_scale, x_zero_point, _ptr(w, ctypes.c_int8),
+            _f32(scales), _opt_ptr(b, ctypes.c_int32), _ptr(out, ctypes.c_int8),
+            out_scale, out_zero_point, x.shape[0], x.shape[1], w.shape[1],
+            _activation(activation))
+    _check("fully_connected_int8", status)
     return out
+
+
+def conv2d_int8(x, x_scale, x_zero_point, filters, f_scale, bias, out_scale,
+                out_zero_point, stride=1, padding="SAME", activation=None):
+    """TFLite-compatible int8 2D convolution.
+
+    x: int8 NHWC. filters: int8 OHWI, symmetric, with f_scale a scalar or one
+    scale per output channel. bias: int32 [out_c] (scale x_scale * f_scale)
+    or None.
+    """
+    x = _arr(x, np.int8)
+    f = _arr(filters, np.int8)
+    if x.ndim != 4 or f.ndim != 4 or x.shape[3] != f.shape[3]:
+        raise ValueError("conv2d_int8 expects x[n,h,w,c] and filters[out_c,kh,kw,c]")
+    n, h, w, c = x.shape
+    oc, kh, kw, _ = f.shape
+    scales, n_scales = _scales(f_scale, oc, "f_scale")
+    b = None if bias is None else _arr(bias, np.int32).reshape(-1)
+    if b is not None and b.shape[0] != oc:
+        raise ValueError("bias must have out_c elements")
+    sh, sw = _pair(stride)
+    pad = _padding(padding)
+    oh = lib.ptensor_conv_output_size(h, kh, sh, pad)
+    ow = lib.ptensor_conv_output_size(w, kw, sw, pad)
+    if not oh or not ow:
+        raise ValueError("filter does not fit the input")
+    out = np.empty((n, oh, ow, oc), np.int8)
+    _check("conv2d_int8", lib.ptensor_conv2d_i8(
+        _ptr(x, ctypes.c_int8), n, h, w, c, x_scale, x_zero_point,
+        _ptr(f, ctypes.c_int8), oc, kh, kw, _f32(scales), n_scales,
+        _opt_ptr(b, ctypes.c_int32), sh, sw, pad, _activation(activation),
+        _ptr(out, ctypes.c_int8), out_scale, out_zero_point))
+    return out
+
+
+def maxpool2d_int8(x, kernel, stride=None, padding="VALID"):
+    """int8 max pooling over NHWC input; output keeps the input's quantization."""
+    x = _arr(x, np.int8)
+    if x.ndim != 4:
+        raise ValueError("maxpool2d_int8 expects x[n,h,w,c]")
+    kh, kw = _pair(kernel)
+    sh, sw = _pair(kernel if stride is None else stride)
+    pad = _padding(padding)
+    n, h, w, c = x.shape
+    oh = lib.ptensor_conv_output_size(h, kh, sh, pad)
+    ow = lib.ptensor_conv_output_size(w, kw, sw, pad)
+    if not oh or not ow:
+        raise ValueError("kernel does not fit the input")
+    out = np.empty((n, oh, ow, c), np.int8)
+    _check("maxpool2d_int8", lib.ptensor_maxpool2d_i8(
+        _ptr(x, ctypes.c_int8), n, h, w, c, kh, kw, sh, sw, pad,
+        _ptr(out, ctypes.c_int8)))
+    return out
+
+
+def softmax_int8(x, x_scale, x_zero_point, out_scale=1.0 / 256, out_zero_point=-128):
+    """int8 softmax over the last axis: dequantize, softmax, requantize.
+
+    The defaults are the output parameters TFLite uses for int8 softmax.
+    """
+    return quantize(softmax(dequantize(x, x_scale, x_zero_point)),
+                    out_scale, out_zero_point)
 
 
 # --- Extended layer types -------------------------------------------------

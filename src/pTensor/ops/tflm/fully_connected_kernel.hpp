@@ -15,6 +15,15 @@ void quantized_matrix_mult_kernel(Tensor& output, const Tensor& input,
                                   int32_t output_activation_min,
                                   int32_t output_activation_max);
 
+// Per-channel variant: output channel c uses output_multiplier[c] and
+// output_shift[c] (TFLite convention: positive shift is a left shift).
+void quantized_matrix_mult_kernel(Tensor& output, const Tensor& input,
+                                  const Tensor& filter, std::function<int32_t(int32_t)> bias,
+                                  const int32_t* output_multiplier,
+                                  const int32_t* output_shift,
+                                  int32_t output_activation_min,
+                                  int32_t output_activation_max);
+
 }  // namespace TFLM
 }  // namespace pTensor
 

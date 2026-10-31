@@ -77,7 +77,8 @@ Conv2dOperator<Tout>::Conv2dOperator()
       per_channel_output_multiplier(nullptr),
       per_channel_output_shift(nullptr),
       output_activation_min(std::numeric_limits<Tout>::min()),
-      output_activation_max(std::numeric_limits<Tout>::max()) {}
+      output_activation_max(std::numeric_limits<Tout>::max()),
+      activation(TFLM::kTfLiteActNone) {}
 
 template <typename Tout>
 Conv2dOperator<Tout>::
@@ -120,18 +121,18 @@ void Conv2dOperator<Tout>::calculateOpData(
       filter->get_shape()[filter_out_channels_dim];
   const QuantizationParams& affine_quantization =
       filter->get_quantization_params();
+  // Filters may be per-channel (TFLite's default) or per-tensor quantized;
+  // per-tensor parameters are broadcast along the output channels below.
   const bool is_per_channel = affine_quantization.num_channels() > 1;
-  // dws conv should be per channel quantized
-  if (!is_per_channel) {
-    Context::get_default_context()->throwError(InvalidQuantizationSchemeError());
-  }
   // check the types are correctly following the spec
   if (input->get_type() != i8 || filter->get_type() != i8 ||
       bias->get_type() != i32) {
     Context::get_default_context()->throwError(InvalidTensorDataTypeError());
+    return;
   }
-  if (!(affine_quantization.num_channels() == num_channels)) {
+  if (is_per_channel && affine_quantization.num_channels() != num_channels) {
     Context::get_default_context()->throwError(qConvPerChannelMismatchError());
+    return;
   }
 
   // PopulateConvolutionQuantizationParams

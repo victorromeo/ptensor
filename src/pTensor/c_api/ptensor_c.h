@@ -241,6 +241,38 @@ PTENSOR_C_EXPORT int ptensor_fully_connected_i8(
     int32_t out_zp, uint32_t batch, uint32_t in_features,
     uint32_t out_features, int activation);
 
+/**
+ * Like ptensor_fully_connected_i8, but with per-output-channel weight scales
+ * (w_scales has out_features entries; TFLite's default for int8 dense layers).
+ * bias scale for channel o is in_scale*w_scales[o].
+ */
+PTENSOR_C_EXPORT int ptensor_fully_connected_i8_pc(
+    const int8_t* in, float in_scale, int32_t in_zp, const int8_t* weights,
+    const float* w_scales, const int32_t* bias, int8_t* out, float out_scale,
+    int32_t out_zp, uint32_t batch, uint32_t in_features,
+    uint32_t out_features, int activation);
+
+/**
+ * TFLite-compatible int8 2D convolution. in: NHWC (in_scale, in_zp);
+ * filter: OHWI int8, symmetric, with `n_filter_scales` scales (1 for
+ * per-tensor or out_c for per-channel); bias: [out_c] int32 or NULL;
+ * out: NHWC (out_scale, out_zp).
+ */
+PTENSOR_C_EXPORT int ptensor_conv2d_i8(
+    const int8_t* in, uint32_t n, uint32_t h, uint32_t w, uint32_t c,
+    float in_scale, int32_t in_zp, const int8_t* filter, uint32_t out_c,
+    uint32_t kh, uint32_t kw, const float* filter_scales,
+    uint32_t n_filter_scales, const int32_t* bias, uint32_t stride_h,
+    uint32_t stride_w, int padding, int activation, int8_t* out,
+    float out_scale, int32_t out_zp);
+
+/** int8 max pooling, NHWC. Input and output share quantization params. */
+PTENSOR_C_EXPORT int ptensor_maxpool2d_i8(const int8_t* in, uint32_t n,
+                                          uint32_t h, uint32_t w, uint32_t c,
+                                          uint32_t kh, uint32_t kw,
+                                          uint32_t stride_h, uint32_t stride_w,
+                                          int padding, int8_t* out);
+
 /* ---- packed storage --------------------------------------------------- */
 
 /** Bytes needed to store `count` values in the given packed format. */
