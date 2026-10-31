@@ -11,6 +11,7 @@ set(src_ptensor_tensors
   tensors/RamTensor.cpp
   tensors/BufferTensor.cpp
   tensors/RomTensor.cpp
+  tensors/PackedRomTensor.cpp
    )
 
 set(src_ptensor_ops

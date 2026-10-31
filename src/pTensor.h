@@ -59,6 +59,8 @@
 #include "pTensor/tensors/BufferTensor.hpp"
 #include "pTensor/tensors/RamTensor.hpp"
 #include "pTensor/tensors/RomTensor.hpp"
+#include "pTensor/tensors/PackedRomTensor.hpp"
+#include "pTensor/util/packing.hpp"
 
 /*
  * Error Handlers

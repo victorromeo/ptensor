@@ -34,6 +34,34 @@ Useful CMake options:
 CI builds and tests every pull request with GCC, Clang, and a sanitizer build,
 and cross-compiles for a Cortex-M4 to report code size.
 
+## Compressed weight storage
+
+`PackedRomTensor` keeps model constants compressed in flash and decodes each
+element as operators read it, so any operator can consume packed weights
+unchanged.
+
+| Storage format | Bytes per element |
+| --- | --- |
+| `PackedEncoding::bits(n, scale, zp)`, n = 1..16 (e.g. 6- or 7-bit uint) | n / 8 |
+| `Int8`, `UInt8` | 1 |
+| `Int16`, `UInt16`, `Float16` (IEEE half) | 2 |
+| `Int32`, `Float32` | 4 |
+| `Float64` (double) | 8 |
+
+Integer codes map to real values as `(code - zp) * scale`. The tensor's logical
+type (what operators see) is any pTensor type: float tensors get the real value,
+and integer tensors get it rounded and saturated.
+
+```cpp
+#include "pTensor/tensors/PackedRomTensor.hpp"
+// 6-bit weights, real = (code - 32) * 0.02, read by ops as float
+Tensor w = new PackedRomTensor({16, 8}, flt,
+                               PackedEncoding::bits(6, 0.02f, 32), packed_weights);
+```
+
+`pTensor/util/packing.hpp` has the matching host-side helpers
+(`pack_bits`, `float_to_half`) for producing packed arrays.
+
 ## Keeping the footprint small
 
 - Operators are header-only templates. An operator you never instantiate adds
