@@ -73,6 +73,12 @@ class PerChannelQuantizationParams : public QuantizationParams {
                                const float (&scale)[num_channels])
       : QuantizationParams(zp, scale, num_channels) {}
 
+  // Runtime-sized variant. The arrays are borrowed, not copied: they must
+  // outlive every tensor that uses these parameters.
+  PerChannelQuantizationParams(const int32_t* zp, const float* scale,
+                               int num_channels)
+      : QuantizationParams(zp, scale, num_channels) {}
+
   virtual int32_t get_zeroP_for_channel(int i) const override;
   virtual float get_scale_for_channel(int i) const override;
 };

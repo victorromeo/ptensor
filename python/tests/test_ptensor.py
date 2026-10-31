@@ -139,6 +139,129 @@ class QuantizedOps(unittest.TestCase):
         np.testing.assert_allclose(y_back, y_f, atol=4 * o_s + 0.02)
 
 
+def np_quantize_multiplier(m):
+    """TFLite QuantizeMultiplier: m = q * 2^shift with q a Q31 int."""
+    if m == 0:
+        return 0, 0
+    q, shift = np.frexp(m)
+    q_fixed = int(round(q * (1 << 31)))
+    if q_fixed == (1 << 31):
+        q_fixed //= 2
+        shift += 1
+    return q_fixed, int(shift)
+
+
+def np_requantize(acc, multiplier, shift):
+    """TFLite MultiplyByQuantizedMultiplier, elementwise over an int array."""
+    acc = np.asarray(acc, np.int64)
+    left = max(shift, 0)
+    right = max(-shift, 0)
+    ab = (acc * (1 << left)) * multiplier
+    nudge = np.where(ab >= 0, 1 << 30, 1 - (1 << 30))
+    num = ab + nudge
+    high = np.where(num >= 0, num // (1 << 31), -((-num) // (1 << 31)))
+    mask = (1 << right) - 1
+    remainder = high & mask
+    threshold = (mask >> 1) + (high < 0)
+    return (high >> right) + (remainder > threshold)
+
+
+def np_conv2d_int8(xq, xs, xz, fq, fs, bq, ys, yz, stride, padding, relu):
+    acc = np_conv2d((xq.astype(np.float64) - xz), fq.astype(np.float64),
+                    None, stride, padding).astype(np.float64)
+    acc = np.rint(acc).astype(np.int64)
+    if bq is not None:
+        acc += bq
+    fs = np.broadcast_to(np.atleast_1d(fs), (fq.shape[0],))
+    out = np.empty_like(acc)
+    for c in range(fq.shape[0]):
+        m, sh = np_quantize_multiplier(float(xs) * float(np.float32(fs[c])) / float(ys))
+        out[..., c] = np_requantize(acc[..., c], m, sh)
+    out += yz
+    lo = max(-128, yz) if relu else -128
+    return np.clip(out, lo, 127).astype(np.int8)
+
+
+class QuantizedLayers(unittest.TestCase):
+    """int8 kernels used by TFLite full-integer models, checked bit-exactly."""
+
+    def _conv_case(self, n, h, w, c, oc, k, stride, padding, per_channel, relu):
+        xq = RNG.integers(-128, 128, (n, h, w, c)).astype(np.int8)
+        fq = RNG.integers(-127, 128, (oc, k, k, c)).astype(np.int8)
+        bq = RNG.integers(-2000, 2000, oc).astype(np.int32)
+        xs, xz = 0.02, -5
+        fs = (RNG.uniform(0.002, 0.01, oc) if per_channel else 0.004)
+        fs = np.asarray(fs, np.float32)
+        ys, yz = 0.15, 3
+        got = ptensor.conv2d_int8(xq, xs, xz, fq, fs, bq, ys, yz, stride, padding,
+                                  "relu" if relu else None)
+        want = np_conv2d_int8(xq, xs, xz, fq, fs, bq, ys, yz, (stride, stride),
+                              padding, relu)
+        np.testing.assert_array_equal(got, want)
+
+    def test_conv2d_int8_matches_tflite_arithmetic(self):
+        self._conv_case(2, 9, 7, 3, 5, 3, 1, "SAME", True, False)
+        self._conv_case(1, 9, 7, 3, 5, 3, 2, "SAME", True, True)
+        self._conv_case(1, 8, 8, 4, 6, 3, 1, "VALID", False, False)
+        self._conv_case(3, 6, 5, 1, 4, 1, 1, "VALID", True, True)
+
+    def test_conv2d_int8_without_bias(self):
+        xq = RNG.integers(-128, 128, (1, 5, 5, 2)).astype(np.int8)
+        fq = RNG.integers(-127, 128, (3, 3, 3, 2)).astype(np.int8)
+        got = ptensor.conv2d_int8(xq, 0.02, 0, fq, 0.005, None, 0.1, 0)
+        want = np_conv2d_int8(xq, 0.02, 0, fq, np.float32(0.005), None, 0.1, 0,
+                              (1, 1), "SAME", False)
+        np.testing.assert_array_equal(got, want)
+
+    def test_maxpool2d_int8(self):
+        x = RNG.integers(-128, 128, (2, 6, 8, 3)).astype(np.int8)
+        got = ptensor.maxpool2d_int8(x, 2)
+        want = x.reshape(2, 3, 2, 4, 2, 3).max(axis=(2, 4))
+        np.testing.assert_array_equal(got, want)
+
+    def test_fully_connected_int8_per_channel(self):
+        xq = RNG.integers(-128, 128, (3, 20)).astype(np.int8)
+        wq = RNG.integers(-127, 128, (20, 7)).astype(np.int8)
+        bq = RNG.integers(-500, 500, 7).astype(np.int32)
+        ws = RNG.uniform(0.002, 0.01, 7).astype(np.float32)
+        xs, xz, ys, yz = 0.03, -10, 0.2, 4
+        got = ptensor.fully_connected_int8(xq, xs, xz, wq, ws, bq, ys, yz)
+        acc = (xq.astype(np.int64) - xz) @ wq.astype(np.int64) + bq
+        want = np.empty_like(acc)
+        for c in range(7):
+            m, sh = np_quantize_multiplier(xs * float(ws[c]) / ys)
+            want[:, c] = np_requantize(acc[:, c], m, sh)
+        want = np.clip(want + yz, -128, 127).astype(np.int8)
+        np.testing.assert_array_equal(got, want)
+
+    def test_fully_connected_int8_more_outputs_than_inputs(self):
+        # Used to be rejected by a bogus shape check in the kernel.
+        xq = RNG.integers(-128, 128, (1, 4)).astype(np.int8)
+        wq = RNG.integers(-127, 128, (4, 9)).astype(np.int8)
+        y = ptensor.fully_connected_int8(xq, 0.05, 0, wq, 0.01, None, 0.1, 0)
+        self.assertEqual(y.shape, (1, 9))
+
+    def test_softmax_int8(self):
+        logits = RNG.integers(-128, 128, (4, 10)).astype(np.int8)
+        q = ptensor.softmax_int8(logits, 0.1, 0)
+        probs = (q.astype(np.float32) + 128) / 256
+        want = ptensor.softmax(0.1 * logits.astype(np.float32))
+        np.testing.assert_allclose(probs, want, atol=1 / 256 + 1e-6)
+
+    def test_large_elementwise_calls_are_chunked(self):
+        # Tensor dims are uint16; flat calls over more values must still work.
+        x = RNG.uniform(-3, 3, 200000).astype(np.float32)
+        q = ptensor.quantize(x, 0.05, 1)
+        v = x / np.float32(0.05)
+        rounded = np.sign(v) * np.floor(np.abs(v) + 0.5)  # half away from zero
+        np.testing.assert_array_equal(
+            q, np.clip(rounded + 1, -128, 127).astype(np.int8))
+        np.testing.assert_allclose(ptensor.dequantize(q, 0.05, 1),
+                                   (q.astype(np.float32) - 1) * 0.05, rtol=1e-6)
+        np.testing.assert_array_equal(ptensor.relu(x), np.maximum(x, 0))
+        np.testing.assert_allclose(ptensor.tanh(x), np.tanh(x), atol=1e-6)
+
+
 class Packing(unittest.TestCase):
     def test_bit_widths(self):
         for bits in range(1, 17):

@@ -7,6 +7,7 @@
 #include "pTensor_util.hpp"
 #include "convolution_helper.hpp"
 #include "ConvolutionOperator.hpp"
+#include "pTensor/core/fast_access.hpp"
 
 namespace pTensor {
 namespace TflmSymQuantOps {
@@ -64,6 +65,52 @@ void squantize_convolution_kernel(Tensor& out, const Tensor& in,
         ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
     filter_top_offset =
         ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
+  }
+
+  // Fast path: every tensor is a dense array, so walk raw pointers. Integer
+  // accumulation, so the result is identical to the reference loop below.
+  {
+    const T* px = fast_read<T>(in);
+    const T* pf = fast_read<T>(filter);
+    const int32_t* pb = have_bias ? fast_read<int32_t>(bias) : nullptr;
+    T* py = fast_write<T>(out);
+    if (px && pf && py && (!have_bias || pb)) {
+      for (int batch = 0; batch < input_batches; ++batch) {
+        const T* pxb = px + (size_t)batch * input_rows * input_cols * input_depth;
+        for (int out_y = 0; out_y < out_rows; ++out_y) {
+          const int in_y_origin = (out_y * stride_rows) - filter_top_offset;
+          for (int out_x = 0; out_x < out_cols; ++out_x) {
+            const int in_x_origin = (out_x * stride_cols) - filter_left_offset;
+            for (int out_channel = 0; out_channel < filter_count; ++out_channel) {
+              int32_t acc = 0;
+              for (int filter_y = 0; filter_y < filter_rows; ++filter_y) {
+                const int in_y = in_y_origin + filter_y;
+                if (in_y < 0 || in_y >= input_rows) continue;
+                for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
+                  const int in_x = in_x_origin + filter_x;
+                  if (in_x < 0 || in_x >= input_cols) continue;
+                  const T* xv = pxb + ((size_t)in_y * input_cols + in_x) * input_depth;
+                  const T* fv = pf + (((size_t)out_channel * filter_rows + filter_y) *
+                                          filter_cols + filter_x) * input_depth;
+                  for (int in_channel = 0; in_channel < input_depth; ++in_channel) {
+                    acc += static_cast<int32_t>(fv[in_channel]) *
+                           (static_cast<int32_t>(xv[in_channel]) + input_offset);
+                  }
+                }
+              }
+              if (have_bias) acc += pb[out_channel];
+              acc = TFLM::MultiplyByQuantizedMultiplier(
+                  acc, output_multiplier[out_channel], output_shift[out_channel]);
+              acc += output_offset;
+              acc = std::max(acc, output_activation_min);
+              acc = std::min(acc, output_activation_max);
+              *py++ = static_cast<T>(acc);
+            }
+          }
+        }
+      }
+      return;
+    }
   }
 
   // If we've got multiple images in our input, work through each of them.
