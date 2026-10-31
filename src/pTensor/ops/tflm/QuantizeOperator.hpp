@@ -25,7 +25,7 @@ void affine_quantize_kernel(Tensor& output, const Tensor& input) {
     pTensor_printf(
         "number of elements of output tensor mismatch with the input for "
         "quantization\n");
-    Context::get_default_context()->throwError(new InvalidTensorOutputError);
+    Context::get_default_context()->throwError(InvalidTensorOutputError());
     return;
   }
   const int32_t zp = quant_params.get_zeroP_for_channel(0);

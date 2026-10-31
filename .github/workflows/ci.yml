@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.compiler }} ${{ matrix.build_type }}${{ matrix.sanitize && ' + sanitizers' || '' }}${{ matrix.python && ' + Python' || '' }}${{ matrix.reference_only && ' (reference kernels only)' || '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            build_type: Release
+          - compiler: clang
+            build_type: Release
+          - compiler: gcc
+            build_type: Debug
+            sanitize: true
+          - compiler: gcc
+            build_type: Release
+            python: true
+          - compiler: gcc
+            build_type: Release
+            reference_only: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-python@v5
+        if: matrix.python
+        with:
+          python-version: "3.12"
+      - name: Install NumPy
+        if: matrix.python
+        run: python -m pip install numpy
+      - name: Fetch googletest
+        run: git submodule update --init --depth 1 extern/gtest
+      - name: Configure
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            export CC=clang CXX=clang++
+          fi
+          EXTRA=""
+          if [ "${{ matrix.sanitize }}" = "true" ]; then
+            EXTRA="-DPTENSOR_SANITIZE=ON"
+          fi
+          if [ "${{ matrix.python }}" = "true" ]; then
+            EXTRA="$EXTRA -DPTENSOR_BUILD_C_API=ON"
+          fi
+          if [ "${{ matrix.reference_only }}" = "true" ]; then
+            EXTRA="$EXTRA -DPTENSOR_WITH_FAST_KERNELS=OFF"
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DPACKAGE_TESTS=ON -DPACKAGE_TUTORIALS=ON $EXTRA
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build --output-on-failure --timeout 120
+
+  cortex-m4:
+    name: Cortex-M4 cross build + size report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install arm-none-eabi toolchain
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+      - name: Build (all features)
+        run: |
+          cmake -S . -B build-m4 -DCMAKE_BUILD_TYPE=MinSizeRel -DPTENSOR_SIZE_PROBE=ON \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi-cortex-m4.cmake
+          cmake --build build-m4 -j"$(nproc)"
+      - name: Build (minimal features)
+        run: |
+          cmake -S . -B build-m4-min -DCMAKE_BUILD_TYPE=MinSizeRel -DPTENSOR_SIZE_PROBE=ON \
+            -DPTENSOR_WITH_QUANTIZED_OPS=OFF -DPTENSOR_WITH_SIMPLE_ERROR_HANDLER=OFF \
+            -DPTENSOR_WITH_FAST_KERNELS=OFF \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi-cortex-m4.cmake
+          cmake --build build-m4-min -j"$(nproc)"
+      - name: Size report
+        run: |
+          {
+            echo '### Cortex-M4 size probe (MinSizeRel)'
+            echo '```'
+            arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe \
+              build-m4-min/examples/size_probe/ptensor_size_probe
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe
+      - name: Library must not call malloc/free
+        run: |
+          arm-none-eabi-objdump -drC build-m4/examples/size_probe/ptensor_size_probe \
+            | awk '/>:$/{fn=$0} /bl.*<(malloc|free|_malloc_r|_free_r)>/{print fn}' \
+            | grep -v -E '__register_exitproc|__call_exitprocs|_exit|atexit' > heap_callers.txt || true
+          if [ -s heap_callers.txt ]; then
+            echo "Heap is used by:"; cat heap_callers.txt; exit 1
+          fi
+
+  bench:
+    name: Host kernel benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPTENSOR_BENCH=ON -DPACKAGE_TESTS=OFF
+          cmake --build build -j"$(nproc)" --target ptensor_bench
+          {
+            echo '### Kernel benchmark (best of N, x86-64 runner)'
+            echo '```'
+            ./build/examples/bench/ptensor_bench
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

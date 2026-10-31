@@ -30,8 +30,16 @@ class relu_k_impl{
     void operator()(Tensor& out, const Tensor& in) const;
 };
 
+// Float ReLU (was declared but never defined, so ReLUOperator<float> failed
+// to link).
 template <>
-void relu_k_impl<float>::operator()(Tensor& out, const Tensor& in) const;
+inline void relu_k_impl<float>::operator()(Tensor& out, const Tensor& in) const {
+  const uint32_t in_size = in->get_shape().get_linear_size();
+  for (uint32_t i = 0; i < in_size; i++) {
+    const float v = static_cast<float>(in(i));
+    out(i) = v < 0.0f ? 0.0f : v;
+  }
+}
 
 // For all quantized forms
 template <typename T>
@@ -106,9 +114,9 @@ using inplace_relu_k = inplace_relu_k_impl<T>;
 template <typename T>
 using relu_k = relu_k_impl<T>;
 template <typename T>
-using inplace_relu6_k = inplace_relu6_k_impl<T>();
+using inplace_relu6_k = inplace_relu6_k_impl<T>;
 template <typename T>
-using relu6_k = relu6_k_impl<T>();
+using relu6_k = relu6_k_impl<T>;
 
 namespace ReferenceOperators {
 
@@ -150,8 +158,7 @@ class ReLUOperator : public OperatorInterface<1, 1> {
     uint32_t in_size = inT->get_shape().get_linear_size();
     uint32_t out_size = outT->get_shape().get_linear_size();
     if (in_size != out_size)
-      Context::get_default_context()->throwError(
-          new OperatorIOSizeMismatchError);
+      Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
     relu_k<T>()(outT, inT);
   }
 };
@@ -174,9 +181,8 @@ class ReLU6Operator : public OperatorInterface<1, 1> {
     uint32_t in_size = inT->get_shape().get_linear_size();
     uint32_t out_size = outT->get_shape().get_linear_size();
     if (in_size != out_size)
-      Context::get_default_context()->throwError(
-          new OperatorIOSizeMismatchError);
-    relu6_k<T>(outT, inT);
+      Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
+    relu6_k<T>()(outT, inT);
   }
 };
 

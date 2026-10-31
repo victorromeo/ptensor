@@ -49,6 +49,9 @@ class FixedTensorMap : public TensorMapInterface {
     //_map = {not_found};
   }
   virtual ~FixedTensorMap() {}
+  // Tensor maps live inside operators/models; never on the heap.
+  static void* operator new(size_t) = delete;
+  static void operator delete(void*) {}
  
   /*
   SimpleNamedTensor& operator[](uint8_t i) override {

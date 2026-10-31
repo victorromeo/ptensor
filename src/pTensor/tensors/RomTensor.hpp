@@ -12,6 +12,8 @@ class RomTensor : public BufferTensor {
 
  public:
   RomTensor(const TensorShape& _shape, ttype _type, const void* buffer);
+  // Read-only: optimized kernels never get a writable pointer to ROM.
+  virtual void* raw_mutable_data() override { return nullptr; }
 
   // Doing constructors this way lets us check for bounds
   template <typename T, size_t buffer_size>
@@ -19,8 +21,7 @@ class RomTensor : public BufferTensor {
       : BufferTensor(_shape, ttype_from<T>::type,
                      const_cast<void*>(reinterpret_cast<const void*>(buffer))) {
     if (_shape.get_linear_size() != buffer_size) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
   }
 

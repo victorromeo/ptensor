@@ -169,6 +169,9 @@ TEST(RAM_Tensor, out_of_memory) {
   RamTensor a({5, 2}, flt);
   RamTensor b({5, 5}, flt);
   EXPECT_TRUE(is_oom);
+  // The handler captures a local by reference; drop it before is_oom goes out
+  // of scope so later tests cannot write through a dangling reference.
+  mErrHandler.set_onError([](Error*) {});
 }
 
 TEST(RAM_Tensor, move_to_fit) {

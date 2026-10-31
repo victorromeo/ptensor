@@ -24,7 +24,7 @@ void* TensorBase::operator new(size_t sz) {
 
 void TensorBase::operator delete(void* p) {
   if(p == nullptr){
-    Context::get_default_context()->throwError(new NullTensorDeleteError);
+    Context::get_default_context()->throwError(NullTensorDeleteError());
   }
   Context::get_default_context()->get_metadata_allocator()->deallocate(p);
 }
@@ -77,8 +77,7 @@ size_t TensorInterface::_get_readable_block(const void*& buffer,
                                             uint32_t linear_index) const {
   pTensor_printf(
       "ERROR, Optimized op attempted to read access non-optimizable tensor\n");
-  Context::get_default_context()->throwError(
-      new InvalidOptimizableTensorError());
+  Context::get_default_context()->throwError(InvalidOptimizableTensorError());
   return -1;
 }
 size_t TensorInterface::_get_writeable_block(void*& buffer,
@@ -86,8 +85,7 @@ size_t TensorInterface::_get_writeable_block(void*& buffer,
                                              uint32_t linear_index) {
   pTensor_printf(
       "ERROR, Optimized op attempted to write access non-optimizable tensor\n");
-  Context::get_default_context()->throwError(
-      new InvalidOptimizableTensorError());
+  Context::get_default_context()->throwError(InvalidOptimizableTensorError());
   return -1;
 }
 size_t TensorInterface::get_readable_block(const void*& buffer, uint16_t req_read_size,

@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <limits>
 
+#include "pTensor/core/fast_access.hpp"
 #include "pTensor/core/operatorBase.hpp"
+#include "pTensor/ops/fast/dense_kernels.hpp"
 
 namespace pTensor {
 
@@ -549,6 +551,34 @@ class Conv2dOperator : public OperatorInterface<3, 1> {
 template <typename T>
 void Conv2dOperator<T>::compute() {
   bool have_bias = inputs.has(bias);
+  {
+    const Tensor& x = inputs[in].tensor();
+    const Tensor& f = inputs[filter].tensor();
+    Tensor& y = outputs[out].tensor();
+    const T* px = fast_read<T>(x);
+    const T* pf = fast_read<T>(f);
+    const T* pb = have_bias ? fast_read<T>(inputs[bias].tensor()) : nullptr;
+    T* py = fast_write<T>(y);
+    if (px && pf && py && (pb || !have_bias)) {
+      const TensorShape& is = x->get_shape();
+      const TensorShape& fs = f->get_shape();
+      const TensorShape& os = y->get_shape();
+      fast::ConvGeometry g;
+      g.batches = is[0]; g.in_h = is[1]; g.in_w = is[2]; g.in_c = is[3];
+      g.out_h = os[1]; g.out_w = os[2];
+      g.out_c = fs[Conv2dConstants::filter_out_channels_dim];
+      g.k_h = fs[Conv2dConstants::filter_height_dim];
+      g.k_w = fs[Conv2dConstants::filter_width_dim];
+      g.stride_h = _stride[1]; g.stride_w = _stride[2];
+      g.dil_h = 1; g.dil_w = 1;
+      // Same offsets as generic_convolution_kernel.
+      const int32_t extra = (_padding == VALID) ? 1 : 0;
+      g.pad_left = ((g.out_w - 1) * g.stride_w + g.k_w - g.in_w + extra) / 2;
+      g.pad_top = ((g.out_h - 1) * g.stride_h + g.k_h - g.in_h + extra) / 2;
+      fast::conv2d_nhwc_ohwi(px, pf, pb, py, g);
+      return;
+    }
+  }
   ConvFilter<T> conv(inputs[filter].tensor());
   if(have_bias) {
     wBias<T> w_bias(inputs[bias].tensor());
@@ -563,7 +593,7 @@ void Conv2dOperator<T>::compute() {
 }
 
 template <>
-void Conv2dOperator<int8_t>::compute() {
+inline void Conv2dOperator<int8_t>::compute() {
   bool have_bias = inputs.has(bias);
   ConvFilter<int8_t> conv(inputs[filter].tensor());
   if(have_bias) {
@@ -603,12 +633,10 @@ class DepthwiseSeparableConvOperator : public OperatorInterface<3, 1> {
     TensorShape& out_shape = outputs[out].tensor()->get_shape();
 
     if (in_shape[3] != df_shape[2]) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
     if (pf_shape[0] != 1 || pf_shape[1] != 1) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
     depthwise_separable_convolution_kernel<T>(
         outputs[out].tensor(), inputs[in].tensor(),

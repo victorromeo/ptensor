@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "pTensor/core/fast_access.hpp"
 #include "pTensor/core/operatorBase.hpp"
 #include "pTensor/core/types.hpp"
 
@@ -63,6 +64,42 @@ void generic_pool_convolution_kernel(Tensor& out, const Tensor& in,
         ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
     filter_top_offset =
         ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
+  }
+
+  {
+    // Dense fast path: same per-output computation (out-of-bounds taps read
+    // as 0), visiting outputs in memory order.
+    const T* px = fast_read<T>(in);
+    T* py = fast_write<T>(out);
+    if (px && py) {
+      for (int batch = 0; batch < input_batches; ++batch) {
+        const T* in_b = px + batch * input_rows * input_cols * input_depth;
+        for (int out_y = 0; out_y < out_rows; ++out_y) {
+          const int in_y_origin = (out_y * stride_rows) - filter_top_offset;
+          for (int out_x = 0; out_x < out_cols; ++out_x, py += out_depth) {
+            const int in_x_origin = (out_x * stride_cols) - filter_left_offset;
+            for (int out_channel = 0; out_channel < out_depth; ++out_channel) {
+              filter.reset();
+              for (int filter_y = 0; filter_y < filter_rows; ++filter_y) {
+                const int in_y = in_y_origin + filter_y;
+                const bool row_ok = in_y >= 0 && in_y < input_rows;
+                for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
+                  const int in_x = in_x_origin + filter_x;
+                  const T input_value =
+                      (row_ok && in_x >= 0 && in_x < input_cols)
+                          ? in_b[(in_y * input_cols + in_x) * input_depth + out_channel]
+                          : T(0);
+                  filter.PartialCompute(input_value, filter_y, filter_x,
+                                        out_channel, out_channel);
+                }
+              }
+              py[out_channel] = filter.finalize();
+            }
+          }
+        }
+      }
+      return;
+    }
   }
 
   // If we've got multiple images in our input, work through each of them.

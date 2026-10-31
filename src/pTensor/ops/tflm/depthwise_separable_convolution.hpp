@@ -121,30 +121,28 @@ void DepthwiseSeparableConvOperator<Tout>::calculateOpData(
 
   int unused_output_height, unused_output_width;
 
-  // Luckily our padding enum matches up so we can just cast this shit
   TFLM::ComputePaddingHeightWidth(stride_height, stride_width, 1, 1, height,
                                   width, filter_height, filter_width,
                                   &padding_height, &padding_width,
-                                  static_cast<TFLM::TfLitePadding>(padding),
+                                  TFLM::ToTfLitePadding(padding),
                                   &unused_output_height, &unused_output_width);
 
   int num_channels =
       filter->get_shape()[kDepthwiseConvQuantizedDimension];
-  QuantizationParams affine_quantization = filter->get_quantization_params();
+  const QuantizationParams& affine_quantization =
+      filter->get_quantization_params();
   const bool is_per_channel = affine_quantization.num_channels() > 1;
   // dws conv should be per channel quantized
   if (!is_per_channel) {
-    Context::get_default_context()->throwError(
-        new InvalidQuantizationSchemeError);
+    Context::get_default_context()->throwError(InvalidQuantizationSchemeError());
   }
   // check the types are correctly following the spec
   if (input->get_type() != i8 || filter->get_type() != i8 ||
       bias->get_type() != i32) {
-    Context::get_default_context()->throwError(new InvalidTensorDataTypeError);
+    Context::get_default_context()->throwError(InvalidTensorDataTypeError());
   }
   if (!(affine_quantization.num_channels() == num_channels)) {
-    Context::get_default_context()->throwError(
-        new qDwsConvPerChannelMismatchError);
+    Context::get_default_context()->throwError(qDwsConvPerChannelMismatchError());
   }
 
   // PopulateConvolutionQuantizationParams
@@ -189,12 +187,10 @@ void DepthwiseSeparableConvOperator<Tout>::compute() {
 
   /* These are not correct
   if (in_shape[3] != df_shape[2]) {
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError);
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
   if (bias_shape[0] != 1 || bias_shape[1] != 1) {
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError);
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
   */
 
@@ -227,7 +223,7 @@ void DepthwiseSeparableConvOperator<Tout>::compute() {
   );
 
   // op_params.padding_type = TFLM::PaddingType::kSame;
-  op_params.padding_type = static_cast<TFLM::PaddingType>(_padding);
+  op_params.padding_type = TFLM::ToPaddingType(_padding);
   op_params.padding_values.width = paddingVals.width;
   op_params.padding_values.height = paddingVals.height;
   op_params.stride_width = _stride[1];

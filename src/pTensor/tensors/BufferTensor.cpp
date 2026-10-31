@@ -8,7 +8,7 @@ namespace pTensor {
 
 void BufferTensor::resize(const TensorShape& new_shape) {
   pTensor_printf("[ERROR] Cannot resize a BufferTensor\n");
-  Context::get_default_context()->throwError(new InvalidResizeError());
+  Context::get_default_context()->throwError(InvalidResizeError());
 }
 
 BufferTensor::BufferTensor(const TensorShape& _shape, ttype _type)
@@ -40,7 +40,7 @@ void* BufferTensor::read(uint32_t linear_index) const {
     return reinterpret_cast<void*>(_buffer + linear_index * _type_size);
   }
 
-  Context::get_default_context()->throwError(new InvalidMemAccessError());
+  Context::get_default_context()->throwError(InvalidMemAccessError());
   return nullptr;
 }
 void* BufferTensor::write(uint32_t linear_index) {
@@ -48,7 +48,7 @@ void* BufferTensor::write(uint32_t linear_index) {
     // uint8_t* d = reinterpret_cast<uint8_t*>(*_buffer);
     return reinterpret_cast<void*>(_buffer + linear_index * _type_size);
   }
-  Context::get_default_context()->throwError(new InvalidMemAccessError());
+  Context::get_default_context()->throwError(InvalidMemAccessError());
   return nullptr;
 }
 }  // namespace pTensor

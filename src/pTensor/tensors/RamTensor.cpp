@@ -10,6 +10,12 @@ size_t calc_required_space(const TensorShape& new_shape, uint8_t _type_size) {
 }
 
 RamTensor::RamTensor() {}
+const void* RamTensor::raw_data() const {
+  return _ram_region ? *_ram_region : nullptr;
+}
+void* RamTensor::raw_mutable_data() {
+  return _ram_region ? *_ram_region : nullptr;
+}
 void* RamTensor::read(uint32_t linear_index) const {
   if (_ram_region) {
     uint8_t* d = reinterpret_cast<uint8_t*>(*_ram_region);
@@ -28,7 +34,7 @@ void* RamTensor::write(uint32_t linear_index) {
 size_t RamTensor::_get_readable_block(const void*& buffer, uint16_t req_read_size,
                                       uint32_t linear_index) const {
   if (req_read_size + linear_index > _type_size * _shape.get_linear_size()) {
-    Context::get_default_context()->throwError(new InvalidMemAccessError());
+    Context::get_default_context()->throwError(InvalidMemAccessError());
     return -1;
   }
   uint8_t* d = reinterpret_cast<uint8_t*>(*_ram_region);
@@ -38,7 +44,7 @@ size_t RamTensor::_get_readable_block(const void*& buffer, uint16_t req_read_siz
 size_t RamTensor::_get_writeable_block(void*& buffer, uint16_t req_write_size,
                                        uint32_t linear_index) {
   if (req_write_size + linear_index > _type_size * _shape.get_linear_size()) {
-    Context::get_default_context()->throwError(new InvalidMemAccessError());
+    Context::get_default_context()->throwError(InvalidMemAccessError());
     return -1;
   }
   uint8_t* d = reinterpret_cast<uint8_t*>(*_ram_region);
@@ -81,7 +87,7 @@ void RamTensor::resize(const TensorShape& new_shape) {
   void* ptr = allocator->allocate(new_shape.get_linear_size()*_type_size);
   if (!ptr) {
     pTensor_printf("OOM when resizing\n");
-    Context::get_default_context()->throwError(new OutOfMemError);
+    Context::get_default_context()->throwError(OutOfMemError());
     return;
   }
   _shape = new_shape;
@@ -103,8 +109,7 @@ void FutureMaxSizeRamTensor::resize(const TensorShape& new_shape) {
   }
   if (calc_required_space(new_shape, _type_size) >= max_initial_size) {
     pTensor_printf("[ERROR] Resize of FutureTensor can only shrink\n");
-    Context::get_default_context()->get_default_context()->throwError(
-        new InvalidResizeError());
+    Context::get_default_context()->get_default_context()->throwError(InvalidResizeError());
     return;
   }
   _shape = new_shape;

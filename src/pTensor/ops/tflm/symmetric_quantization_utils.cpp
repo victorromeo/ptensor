@@ -108,16 +108,14 @@ void QuantizeMultiplier(double double_multiplier, int32_t* quantized_multiplier,
   auto q_fixed = static_cast<int64_t>(std::round(q * (1ll << 31)));
 #endif  // TFLITE_EMULATE_FLOAT
   if (q_fixed > (1ll << 31)) {
-    Context::get_default_context()->throwError(
-        new SymmetricQuantizationFixedPointError);
+    Context::get_default_context()->throwError(SymmetricQuantizationFixedPointError());
   }
   if (q_fixed == (1ll << 31)) {
     q_fixed /= 2;
     ++*shift;
   }
   if (q_fixed > std::numeric_limits<int32_t>::max()) {
-    Context::get_default_context()->throwError(
-        new SymmetricQuantizationFixedPointRangeError);
+    Context::get_default_context()->throwError(SymmetricQuantizationFixedPointRangeError());
   }
   // A shift amount smaller than -31 would cause all bits to be shifted out
   // and thus all results would be zero. We implement that instead with
@@ -179,7 +177,7 @@ void CalculateActivationRangeQuantized(TfLiteFusedActivation activation,
     qmin = std::numeric_limits<int16_t>::min();
     qmax = std::numeric_limits<int16_t>::max();
   } else {
-    Context::get_default_context()->throwError(new InvalidTensorDataTypeError);
+    Context::get_default_context()->throwError(InvalidTensorDataTypeError());
   }
 
   CalculateActivationRangeQuantizedImpl(activation, qmin, qmax, output, act_min,
@@ -203,8 +201,7 @@ void GetQuantizedConvolutionMultipler(const Tensor& input, const Tensor& filter,
     const double bias_scale = static_cast<double>(
         bias->get_quantization_params().get_scale_for_channel(0));
     if (std::abs(input_product_scale - bias_scale) > 2e-6) {
-      Context::get_default_context()->throwError(
-          new InvalidFCQuantizationScalesError);
+      Context::get_default_context()->throwError(InvalidFCQuantizationScalesError());
     }
   }
   return GetQuantizedConvolutionMultipler(input, filter, output, multiplier);
@@ -216,8 +213,7 @@ void GetQuantizedConvolutionMultipler(const Tensor& input, const Tensor& filter,
       input->get_quantization_params().get_scale_for_channel(0) *
       filter->get_quantization_params().get_scale_for_channel(0));
   if (input_product_scale < 0) {
-    Context::get_default_context()->throwError(
-        new FCQuantizationScaleMultipleLTzeroError);
+    Context::get_default_context()->throwError(FCQuantizationScaleMultipleLTzeroError());
   }
   *multiplier = input_product_scale /
                 static_cast<double>(

@@ -19,7 +19,7 @@ void* RomTensor::write(uint32_t linear_index) {
 size_t RomTensor::_get_readable_block(const void*& buffer, uint16_t req_read_size,
                                       uint32_t linear_index) const {
   if (req_read_size + linear_index > _type_size * _shape.get_linear_size()) {
-    Context::get_default_context()->throwError(new InvalidMemAccessError());
+    Context::get_default_context()->throwError(InvalidMemAccessError());
     return -1;
   }
   buffer = reinterpret_cast<void*>(_buffer + linear_index * _type_size);
@@ -27,8 +27,7 @@ size_t RomTensor::_get_readable_block(const void*& buffer, uint16_t req_read_siz
 }
 size_t RomTensor::_get_writeable_block(void*& buffer, uint16_t req_write_size,
                                        uint32_t linear_index) {
-  Context::get_default_context()->throwError(
-      new InvalidOptimizableTensorError());
+  Context::get_default_context()->throwError(InvalidOptimizableTensorError());
   pTensor_printf(
       "ERROR, Optimized op attempted to write access non-optimizable tensor\n");
   return -1;
@@ -37,7 +36,7 @@ size_t RomTensor::_get_writeable_block(void*& buffer, uint16_t req_write_size,
 RomTensor::~RomTensor() {}
 void RomTensor::resize(const TensorShape& new_shape) {
   pTensor_printf("[ERROR] Attempted resize of ROM tensor\n");
-  Context::get_default_context()->throwError(new InvalidResizeError());
+  Context::get_default_context()->throwError(InvalidResizeError());
 }
 
 // Returns floor of square root of x
@@ -69,14 +68,12 @@ DiagonalRomTensor::DiagonalRomTensor(const TensorShape& _shape, ttype _type,
     pTensor_printf(
         "[ERROR] Attempted to create diagonal Tensor with wrong number of "
         "dimensions\n");
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError());
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
   uint16_t smaller_dim = (_shape[0] < _shape[1]) ? _shape[0] : _shape[1];
   if (buffer_len < smaller_dim) {
     pTensor_printf("[ERROR] Diagnoal Tensor size mismatch with buffer\n");
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError());
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
 }
 

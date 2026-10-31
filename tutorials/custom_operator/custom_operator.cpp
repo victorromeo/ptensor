@@ -20,7 +20,7 @@ void my_add_kernel(const Tensor& tensor1, const Tensor& tensor2,
   // input shapes should be the same
   if (shape1 != shape2) {
     // you can throw error as following:
-    Context::get_default_context()->throwError(new InvalidReshapeError);
+    Context::get_default_context()->throwError(InvalidReshapeError());
     // Please refer to error_handling tutorial to see how to set a error handler
     // to handle the error in pTensor. Without an handler, all errors are
     // ignored by default.

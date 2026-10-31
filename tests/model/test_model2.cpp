@@ -38,6 +38,10 @@ class MyModel
   virtual void compute();
 
  private:
+  // Memory Allocators. Declared first so they are destroyed last: the tensors
+  // below release their memory back into these allocators on destruction.
+  localCircularArenaAllocator<512> meta_allocator;
+  localCircularArenaAllocator<64> ram_allocator;
   // ROM Tensors
   Tensor b;
   Tensor c;
@@ -49,9 +53,6 @@ class MyModel
   MatrixMultOperator<uint8_t> mult;
   AddOperator<uint8_t> add;
 
-  // Memory Allocators
-  localCircularArenaAllocator<512> meta_allocator;
-  localCircularArenaAllocator<64> ram_allocator;
 };
 
 MyModel::MyModel() {

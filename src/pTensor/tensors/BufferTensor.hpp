@@ -20,12 +20,13 @@ class BufferTensor : public TensorInterface {
       : BufferTensor(_shape, ttype_from<T>::type,
                      reinterpret_cast<void*>(buffer)) {
     if (_shape.get_linear_size() != buffer_size) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
   }
 
   bool is_bound_to_buffer() const;
+  virtual const void* raw_data() const override { return _buffer; }
+  virtual void* raw_mutable_data() override { return _buffer; }
   // Check if is bound to this pointer
   bool is_bound_to_buffer(void* b) const;
   bool bind(void* b);

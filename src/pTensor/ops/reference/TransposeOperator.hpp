@@ -26,12 +26,11 @@ class TransposeOperator : public OperatorInterface<2, 1> {
     if (perm_tensor.get_shape().num_dims() > 1) {
       pTensor_printf(
           "the input tensor perm should be a vector (dimension should be 1)\n");
-      Context::get_default_context()->throwError(new InvalidTensorInputError);
+      Context::get_default_context()->throwError(InvalidTensorInputError());
     }
     if (perm_tensor->get_type() != i32) {
       pTensor_printf("expecting perm tensor of element type int32_t\n");
-      Context::get_default_context()->throwError(
-          new InvalidTensorDataTypeError);
+      Context::get_default_context()->throwError(InvalidTensorDataTypeError());
     }
     Tensor& input_tensor = inputs[input].tensor();
     TensorShape& input_shape = input_tensor.get_shape();
@@ -74,18 +73,16 @@ class TransposeOperator : public OperatorInterface<2, 1> {
     // Perform some basic checks
     if (input_tensor->num_elems() != output_tensor->num_elems()) {
       pTensor_printf("inconsistent input and output shape for reshape\n");
-      Context::get_default_context()->throwError(new InvalidReshapeError);
+      Context::get_default_context()->throwError(InvalidReshapeError());
       return;
     }
     if (input_tensor->get_type() != output_tensor->get_type()) {
       pTensor_printf("inconsistent input and output data type for reshape\n");
-      Context::get_default_context()->throwError(
-          new InvalidTensorDataTypeError);
+      Context::get_default_context()->throwError(InvalidTensorDataTypeError());
       return;
     }
     if (!_check_input_shape()) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDataTypeError);
+      Context::get_default_context()->throwError(InvalidTensorDataTypeError());
       return;
     }
 

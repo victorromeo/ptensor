@@ -25,14 +25,14 @@ TEST(LayerByLayer, qFC_5) {
   PerTensorQuantizationParams out_params(out_zp, out_scale);
   output->set_quantization_params(out_params);
 
-  QuantizedFullyConnectedOperator<int8_t> op(TFLM::kTfLiteActNone);
+  TflmSymQuantOps::FullyConnectedOperator<int8_t> op(TFLM::kTfLiteActNone);
 
   op.set_inputs({
-                    {QuantizedFullyConnectedOperator<int8_t>::input, input},
-                    {QuantizedFullyConnectedOperator<int8_t>::filter, filter},
-                    {QuantizedFullyConnectedOperator<int8_t>::bias, bias},
+                    {TflmSymQuantOps::FullyConnectedOperator<int8_t>::input, input},
+                    {TflmSymQuantOps::FullyConnectedOperator<int8_t>::filter, filter},
+                    {TflmSymQuantOps::FullyConnectedOperator<int8_t>::bias, bias},
                 })
-      .set_outputs({{QuantizedFullyConnectedOperator<int8_t>::output, output}})
+      .set_outputs({{TflmSymQuantOps::FullyConnectedOperator<int8_t>::output, output}})
       .eval();
   for (int i = 0; i < 10; ++i) {
     EXPECT_NEAR(static_cast<int8_t>(output(i)), ref_output[i], 1);

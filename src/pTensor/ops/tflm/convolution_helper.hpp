@@ -1,6 +1,7 @@
 #ifndef PTENSOR_S_QUANTIZED_CONV_OPS_HELPER_H
 #define PTENSOR_S_QUANTIZED_CONV_OPS_HELPER_H
 #include "context.hpp"
+#include "operatorBase.hpp"
 #include "symmetric_quantization_utils.hpp"
 
 namespace pTensor {
@@ -17,6 +18,23 @@ typedef enum {
 
 
 enum PaddingType : uint8_t { kNone = 0, kSame, kValid };
+
+// pTensor's Padding enum (UNKNOWN, VALID, SAME) is ordered differently from
+// the TFLite enums, so always convert explicitly rather than casting.
+inline TfLitePadding ToTfLitePadding(Padding p) {
+  switch (p) {
+    case VALID: return kTfLitePaddingValid;
+    case SAME: return kTfLitePaddingSame;
+    default: return kTfLitePaddingUnknown;
+  }
+}
+inline PaddingType ToPaddingType(Padding p) {
+  switch (p) {
+    case VALID: return kValid;
+    case SAME: return kSame;
+    default: return kNone;
+  }
+}
 
 struct PaddingValues {
   int16_t width;

@@ -32,19 +32,21 @@ endmacro()
 package_add_test_with_libraries(test_types core/test_types.cpp ptensor_core core "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_alloc allocators/test_arenaAllocator.cpp ptensor allocators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_context core/test_context.cpp ptensor core "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_quantparams core/test_quantization_params ptensor core "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_quantparams core/test_quantization_params.cpp ptensor core "${PROJECT_DIR}/test-data/")
 
 # Tensors
 package_add_test_with_libraries(test_ramtensor tensors/test_ramtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_buffertensor tensors/test_buffertensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_romtensor tensors/test_romtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_packedromtensor tensors/test_packedromtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_extended_ops operators/test_extended_ops.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Operators
 package_add_test_with_libraries(test_arith operators/test_arithmetic.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_matrix_ops operators/test_matrix.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_convolution_no_bias operators/test_convolution_nobias.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_convolution_bias operators/test_convolution_bias.cpp ptensor operators "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_dws_convolution operators/test_dws_convolution ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_dws_convolution operators/test_dws_convolution.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_relu operators/test_relu.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_maxpool operators/test_maxpool.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_avgpool operators/test_avgpool.cpp ptensor operators "${PROJECT_DIR}/test-data/")
@@ -54,31 +56,47 @@ package_add_test_with_libraries(test_argmin operators/test_argmin.cpp ptensor op
 package_add_test_with_libraries(test_reshape operators/test_reshape.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_dequantize operators/test_dequantize.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_quantize operators/test_quantize.cpp ptensor operators "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_quant_dws_conv operators/test_quantized_dws_conv ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_quant_dws_conv operators/test_quantized_dws_conv.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_quant_fully_connect_2 operators/test_quant_fully_connect_2.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_fully_connect operators/test_fully_connected.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_sq_conv2d operators/test_sq_conv2d.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_sq_softmax operators/test_sq_softmax.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_sq_logistic operators/test_sq_logistic.cpp ptensor operators "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_sq_tanh operators/test_sq_tanh.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_sq_tanh operators/test_sq_tanh.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_transpose operators/test_transpose.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Includes
-# package_add_test_with_libraries(test_top_include library/test_top_include ptensor library "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_top_include "library/test_top_include.cpp;library/test_top_include_second_tu.cpp" ptensor library "${PROJECT_DIR}/test-data/")
 
 # Models
-# package_add_test_with_libraries(test_model1 model/test_model1 ptensor model "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_model2 model/test_model2 ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_model1 model/test_model1.cpp ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_model2 model/test_model2.cpp ptensor model "${PROJECT_DIR}/test-data/")
 # TODO Figure out why these tests have accuracy issues. Might just be a copy paste issue
-# package_add_test_with_libraries(test_layer_1_quantize model/test_layer_1_quantize ptensor model "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_layer_2_dws_conv2d model/test_layer_2_dws_conv2d ptensor model "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_layer_3_dws_conv2d model/test_layer_3_dws_conv2d ptensor model "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_layer_4_maxpool model/test_layer_4_maxpool ptensor model "${PROJECT_DIR}/test-data/")
-# package_add_test_with_libraries(test_layer_5_qFC model/test_layer_5_qFC ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_layer_1_quantize model/test_layer_1_quantize.cpp ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_layer_2_dws_conv2d model/test_layer_2_dws_conv2d.cpp ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_layer_3_dws_conv2d model/test_layer_3_dws_conv2d.cpp ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_layer_4_maxpool model/test_layer_4_maxpool.cpp ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_layer_5_qFC model/test_layer_5_qFC.cpp ptensor model "${PROJECT_DIR}/test-data/")
 # using integration test instead of layer-by-layer tests above
-# package_add_test_with_libraries(integration_test model/integration_test ptensor model "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(integration_test model/integration_test.cpp ptensor model "${PROJECT_DIR}/test-data/")
 
 #Error Handlers
 package_add_test_with_libraries(test_simple_error_handler error_handlers/test_errorhandler.cpp ptensor error_handlers "${PROJECT_DIR}/test-data/")
 
 option(INSTALL_GTEST "Enable installation of googletest. (Projects embedding googletest may want to turn this OFF.)" OFF)
+# Python bindings: verify the C API against NumPy reference implementations.
+if(PTENSOR_BUILD_C_API)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                    RESULT_VARIABLE _ptensor_numpy_missing OUTPUT_QUIET ERROR_QUIET)
+    if(_ptensor_numpy_missing EQUAL 0)
+      add_test(NAME python_bindings
+               COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${PROJECT_SOURCE_DIR}/python/tests -v)
+      set_tests_properties(python_bindings PROPERTIES
+        ENVIRONMENT "PTENSOR_LIBRARY=$<TARGET_FILE:ptensor_c>;PYTHONPATH=${PROJECT_SOURCE_DIR}/python")
+    else()
+      message(STATUS "NumPy not found: skipping the Python binding tests")
+    endif()
+  endif()
+endif()

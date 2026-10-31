@@ -80,8 +80,7 @@ void ComputePaddingHeightWidth(int stride_height, int stride_width,
 
 uint16_t MatchingDim(TensorShape s0, uint8_t i0, TensorShape s1, uint8_t i1) {
   if (!(s0[i0] == s1[i1])) {
-    Context::get_default_context()->throwError(
-        new qConvMismatchedDimensionsError);
+    Context::get_default_context()->throwError(qConvMismatchedDimensionsError());
   }
 
   return s0[i0];

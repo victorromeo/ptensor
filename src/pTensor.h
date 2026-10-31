@@ -1,6 +1,11 @@
 #ifndef __pTensor_H
 #define __pTensor_H
 /*
+ * Build configuration (which optional features were compiled in)
+ */
+#include "pTensor/ptensor_config.h"
+
+/*
  * Core bits
  */
 // This one selects platform specific stuff. probably should come first
@@ -17,13 +22,15 @@
  * Operators
  */
 
+#if PTENSOR_WITH_QUANTIZED_OPS
 #include "pTensor/ops/tflm/convolution2d.hpp"
 #include "pTensor/ops/tflm/depthwise_separable_convolution.hpp"
 #include "pTensor/ops/tflm/fully_connected.hpp"
 #include "pTensor/ops/tflm/DequantizeOperator.hpp"
 #include "pTensor/ops/tflm/QuantizeOperator.hpp"
+#endif
 
-// #include "pTensor/ops/tanh.hpp"
+#include "pTensor/ops/reference/TanhOperator.hpp"
 
 #include "pTensor/ops/reference/ReLuOperator.hpp"
 #include "pTensor/ops/reference/SoftMaxOperator.hpp"
@@ -42,6 +49,9 @@
 #include "pTensor/ops/reference/MaxPoolOperator.hpp"
 #include "pTensor/ops/reference/MinPoolOperator.hpp"
 #include "pTensor/ops/reference/TransposeOperator.hpp"
+#include "pTensor/ops/reference/ReshapeOperator.hpp"
+#include "pTensor/ops/reference/ElementwiseOperators.hpp"
+#include "pTensor/ops/reference/LayerOperators.hpp"
 
 
 /*
@@ -51,11 +61,15 @@
 #include "pTensor/tensors/BufferTensor.hpp"
 #include "pTensor/tensors/RamTensor.hpp"
 #include "pTensor/tensors/RomTensor.hpp"
+#include "pTensor/tensors/PackedRomTensor.hpp"
+#include "pTensor/util/packing.hpp"
 
 /*
  * Error Handlers
  */
+#if PTENSOR_WITH_SIMPLE_ERROR_HANDLER
 #include "pTensor/errorHandlers/SimpleErrorHandler.hpp"
+#endif
 
 #endif
 

@@ -55,8 +55,8 @@ int main(int argc, const char** argv) {
   // but this event will be handled
   ptrDefaultContext->notifyEvent(MyEvent());
   // this error will not be handled in our handler
-  ptrDefaultContext->throwError(new InvalidTensorError);
+  ptrDefaultContext->throwError(InvalidTensorError());
   // but this error will be handled and cause the process to spin
-  ptrDefaultContext->throwError(new MyError);
+  ptrDefaultContext->throwError(MyError());
   return 0;
 }

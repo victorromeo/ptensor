@@ -58,6 +58,8 @@ TEST(Integration, run_once) {
     }
   }
   EXPECT_GE(correct_cnt / 10.0, 0.8);
+  // mErrHandler lives on this test's stack; unregister it before returning.
+  Context::get_default_context()->set_ErrorHandler(nullptr);
 }
 
 TEST(Integration, run_10x_mem_check) {
@@ -87,6 +89,8 @@ TEST(Integration, run_10x_mem_check) {
     }
   }
   EXPECT_GE(correct_cnt / inference_cnt, 0.8);
+  // mErrHandler lives on this test's stack; unregister it before returning.
+  Context::get_default_context()->set_ErrorHandler(nullptr);
 }
 
 void compute_model(Tensor& input_10, Tensor& Identity0) {

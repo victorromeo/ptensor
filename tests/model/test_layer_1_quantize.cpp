@@ -14,13 +14,13 @@ TEST(LayerByLayer, Quantize) {
   Tensor output = new RamTensor({1, 28, 28, 1}, i8);
   PerTensorQuantizationParams params(zp, scale);
   output->set_quantization_params(params);
-  ::TFLM::QuantizeOperator<int8_t, float> op;
+  TflmSymQuantOps::QuantizeOperator<int8_t, float> op;
 
   op.set_inputs({
-                    {::TFLM::QuantizeOperator<int8_t, float>::input, input},
+                    {TflmSymQuantOps::QuantizeOperator<int8_t, float>::input, input},
                 })
       .set_outputs({
-          {::TFLM::QuantizeOperator<int8_t, float>::output, output},
+          {TflmSymQuantOps::QuantizeOperator<int8_t, float>::output, output},
       })
       .eval();
   for (int i = 0; i < 784; ++i) {
