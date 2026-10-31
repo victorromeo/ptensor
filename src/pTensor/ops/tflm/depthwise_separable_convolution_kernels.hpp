@@ -86,21 +86,17 @@ void DepthwiseConvPerChannel(const DepthwiseParams& params,
   TensorShape& output_shape = output->get_shape();
 
   if (!(input_shape.num_dims() == 4)) {
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError);
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
   if (!(filter_shape.num_dims() == 4)) {
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError);
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
   if (!(output_shape.num_dims() == 4)) {
-    Context::get_default_context()->throwError(
-        new InvalidTensorDimensionsError);
+    Context::get_default_context()->throwError(InvalidTensorDimensionsError());
   }
 
   if (!(output_activation_min < output_activation_max)) {
-    Context::get_default_context()->throwError(
-        new InvalidQDwsActivationRangeError);
+    Context::get_default_context()->throwError(InvalidQDwsActivationRangeError());
   }
   const int batches = MatchingDim(input_shape, 0, output_shape, 0);
   const int output_depth = MatchingDim(filter_shape, 3, output_shape, 3);
@@ -112,10 +108,10 @@ void DepthwiseConvPerChannel(const DepthwiseParams& params,
   const int output_height = output_shape[1];
   const int output_width = output_shape[2];
   if (!(output_depth == input_depth * depth_multiplier)) {
-    Context::get_default_context()->throwError(new InvalidQDwsOutputDepthError);
+    Context::get_default_context()->throwError(InvalidQDwsOutputDepthError());
   }
   if (!(bias->get_shape().get_linear_size() == (uint16_t)output_depth)) {
-    Context::get_default_context()->throwError(new InvalidQDwsOutputDepthError);
+    Context::get_default_context()->throwError(InvalidQDwsOutputDepthError());
   }
 
   for (int batch = 0; batch < batches; ++batch) {

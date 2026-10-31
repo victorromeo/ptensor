@@ -11,12 +11,12 @@ class string {
   const char* cstr = NULL;
 
   uint32_t hash(const char* c) {
-    int v = 7;
-    for (int i = 0; i < strlen(c); i++) {
-      v = v * 31 + c[i];
+    // Unsigned arithmetic: wrap-around is well defined (signed overflow is UB).
+    uint32_t v = 7;
+    for (; *c; ++c) {
+      v = v * 31u + static_cast<uint32_t>(static_cast<unsigned char>(*c));
     }
-
-    return (uint32_t)v;
+    return v;
   }
 
  public:

@@ -23,17 +23,17 @@ void arg_min_max_kernel(Tensor& output, const Tensor& input, const Tensor& axis,
   if (axis->get_type() != u32) {
     // TODO: type convertion to u32?
     pTensor_printf("only support u32 typed axis tensor\n");
-    Context::get_default_context()->throwError(new InvalidTensorError);
+    Context::get_default_context()->throwError(InvalidTensorError());
     return;
   }
   if (axis.get_shape().num_dims() != 1) {
     pTensor_printf("axis should be scalar\n");
-    Context::get_default_context()->throwError(new InvalidTensorError);
+    Context::get_default_context()->throwError(InvalidTensorError());
     return;
   }
   if (output->get_type() != u32) {
     pTensor_printf("output type must be u32\n");
-    Context::get_default_context()->throwError(new InvalidTensorError);
+    Context::get_default_context()->throwError(InvalidTensorError());
     return;
   }
   uint32_t axis_dim = axis(0);

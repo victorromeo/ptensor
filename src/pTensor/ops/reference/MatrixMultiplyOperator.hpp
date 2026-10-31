@@ -24,8 +24,7 @@ void matrix_mult_kernel(Tensor& c, const Tensor& a, const Tensor& b) {
       c_shape.num_dims() > 2 || a_shape[1] != b_shape[0] ||
       a_shape[0] != c_shape[0] || b_shape[1] != c_shape[1]) {
     pTensor_printf("[Error] Invalid matrix multiple shape mismatch\n");
-    Context::get_default_context()->throwError(
-        new InvalidMatrixMultIndicesError);
+    Context::get_default_context()->throwError(InvalidMatrixMultIndicesError());
   }
 
   for (uint32_t i = 0; i < a_shape[0]; i++) {
@@ -56,8 +55,7 @@ void matrix_mult_kernel_v2(Tensor& output, const Tensor& input,
   const int output_depth = output_shape[1];
   if (!(output_depth <= filter_shape[filter_dim_count - 1])) {
     pTensor_printf("[Error] Invalid matrix multiple shape mismatch\n");
-    Context::get_default_context()->throwError(
-        new InvalidMatrixMultIndicesError);
+    Context::get_default_context()->throwError(InvalidMatrixMultIndicesError());
   }
   const int accum_depth = filter_shape[0];
   for (int b = 0; b < batches; ++b) {
@@ -140,8 +138,7 @@ class MatrixMultOperatorV2<float> : public OperatorInterface<3, 1> {
         c_shape.num_dims() > 2 || a_shape[1] != b_shape[0] ||
         a_shape[0] != c_shape[0] || b_shape[1] != c_shape[1]) {
       pTensor_printf("[Error] Invalid matrix multiple shape mismatch\n");
-      Context::get_default_context()->throwError(
-          new InvalidMatrixMultIndicesError);
+      Context::get_default_context()->throwError(InvalidMatrixMultIndicesError());
     }
 
     if (have_bias) {

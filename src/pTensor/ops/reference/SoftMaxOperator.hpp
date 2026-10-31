@@ -69,7 +69,7 @@ void softmax_k(Tensor& out, const Tensor& in, T beta=1) {
 
 }
 
-void sq_softmax_k(Tensor& out, const Tensor& in, int8_t beta) {
+inline void sq_softmax_k(Tensor& out, const Tensor& in, int8_t beta) {
   const float beta_f = static_cast<float>(beta);
   const TensorShape& inShape = in->get_shape();
   int outer_dim = inShape.num_dims() -1;
@@ -161,22 +161,20 @@ void SoftmaxOperator<T>::compute() {
   uint32_t in_size = inT->get_shape().get_linear_size();
   uint32_t out_size = outT->get_shape().get_linear_size();
   if (in_size != out_size)
-    Context::get_default_context()->throwError(
-        new OperatorIOSizeMismatchError);
+    Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
   softmax_k<T>(outT, inT, beta);
 }
 
 // Symmetric Quantized reference
 template <>
-void SoftmaxOperator<int8_t>::compute() {
+inline void SoftmaxOperator<int8_t>::compute() {
   const Tensor& inT = inputs[in].tensor();
   Tensor& outT = outputs[out].tensor();
   // TODO Check sizes here and throw mismatch
   uint32_t in_size = inT->get_shape().get_linear_size();
   uint32_t out_size = outT->get_shape().get_linear_size();
   if (in_size != out_size)
-    Context::get_default_context()->throwError(
-        new OperatorIOSizeMismatchError);
+    Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
   sq_softmax_k(outT, inT, beta);
 }
 

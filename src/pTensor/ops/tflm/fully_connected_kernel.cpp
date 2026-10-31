@@ -28,8 +28,7 @@ void quantized_matrix_mult_kernel(Tensor& output, const Tensor& input,
   const int batches = output_shape[0];
   const int output_depth = output_shape[1];
   if (!(output_depth < filter_shape[filter_dim_count - 2])) {
-    Context::get_default_context()->throwError(
-        new InvalidMatrixMultIndicesError);
+    Context::get_default_context()->throwError(InvalidMatrixMultIndicesError());
   }
   const int accum_depth = filter_shape[0];
   for (int b = 0; b < batches; ++b) {

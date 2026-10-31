@@ -19,8 +19,7 @@ class RomTensor : public BufferTensor {
       : BufferTensor(_shape, ttype_from<T>::type,
                      const_cast<void*>(reinterpret_cast<const void*>(buffer))) {
     if (_shape.get_linear_size() != buffer_size) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
   }
 

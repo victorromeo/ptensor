@@ -41,7 +41,7 @@ void sigmoid_k_impl<T>::operator()(Tensor& out, const Tensor& in) const {
 }
 
 template <>
-void sigmoid_k_impl<int8_t>::operator()(Tensor& out, const Tensor& in) const {
+inline void sigmoid_k_impl<int8_t>::operator()(Tensor& out, const Tensor& in) const {
   const float one = 1;
   uint32_t t_size = in->get_shape().get_linear_size();
   for (uint32_t i = 0; i < t_size; i++) {

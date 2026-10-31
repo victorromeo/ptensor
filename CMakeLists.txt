@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(ptensor VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
+
 set(CMAKE_CXX_STANDARD 11)
 # TODO be smarter about code coverage bits
 # https://github.com/codecov/example-cpp11-cmake
@@ -17,6 +17,12 @@ endif (MSVC)
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 if(ENABLE_COVERAGE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage -ggdb -fPIC")
+endif()
+
+option(PTENSOR_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(PTENSOR_SANITIZE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
 endif()
 
 option(ENABLE_PRINTING "Enable debug printing" OFF)

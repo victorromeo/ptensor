@@ -150,8 +150,7 @@ class ReLUOperator : public OperatorInterface<1, 1> {
     uint32_t in_size = inT->get_shape().get_linear_size();
     uint32_t out_size = outT->get_shape().get_linear_size();
     if (in_size != out_size)
-      Context::get_default_context()->throwError(
-          new OperatorIOSizeMismatchError);
+      Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
     relu_k<T>()(outT, inT);
   }
 };
@@ -174,8 +173,7 @@ class ReLU6Operator : public OperatorInterface<1, 1> {
     uint32_t in_size = inT->get_shape().get_linear_size();
     uint32_t out_size = outT->get_shape().get_linear_size();
     if (in_size != out_size)
-      Context::get_default_context()->throwError(
-          new OperatorIOSizeMismatchError);
+      Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
     relu6_k<T>(outT, inT);
   }
 };

@@ -23,7 +23,7 @@
 #include "pTensor/ops/tflm/DequantizeOperator.hpp"
 #include "pTensor/ops/tflm/QuantizeOperator.hpp"
 
-// #include "pTensor/ops/tanh.hpp"
+#include "pTensor/ops/reference/TanhOperator.hpp"
 
 #include "pTensor/ops/reference/ReLuOperator.hpp"
 #include "pTensor/ops/reference/SoftMaxOperator.hpp"
@@ -42,6 +42,7 @@
 #include "pTensor/ops/reference/MaxPoolOperator.hpp"
 #include "pTensor/ops/reference/MinPoolOperator.hpp"
 #include "pTensor/ops/reference/TransposeOperator.hpp"
+#include "pTensor/ops/reference/ReshapeOperator.hpp"
 
 
 /*

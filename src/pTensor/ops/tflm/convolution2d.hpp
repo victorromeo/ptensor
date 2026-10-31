@@ -110,30 +110,28 @@ void Conv2dOperator<Tout>::calculateOpData(
 
   int unused_output_height, unused_output_width;
 
-  // Luckily our padding enum matches up so we can just cast this shit
   TFLM::ComputePaddingHeightWidth(stride_height, stride_width, 1, 1, height,
                                   width, filter_height, filter_width,
                                   &padding_height, &padding_width,
-                                  static_cast<TFLM::TfLitePadding>(padding),
+                                  TFLM::ToTfLitePadding(padding),
                                   &unused_output_height, &unused_output_width);
 
   int num_channels =
       filter->get_shape()[filter_out_channels_dim];
-  QuantizationParams affine_quantization = filter->get_quantization_params();
+  const QuantizationParams& affine_quantization =
+      filter->get_quantization_params();
   const bool is_per_channel = affine_quantization.num_channels() > 1;
   // dws conv should be per channel quantized
   if (!is_per_channel) {
-    Context::get_default_context()->throwError(
-        new InvalidQuantizationSchemeError);
+    Context::get_default_context()->throwError(InvalidQuantizationSchemeError());
   }
   // check the types are correctly following the spec
   if (input->get_type() != i8 || filter->get_type() != i8 ||
       bias->get_type() != i32) {
-    Context::get_default_context()->throwError(new InvalidTensorDataTypeError);
+    Context::get_default_context()->throwError(InvalidTensorDataTypeError());
   }
   if (!(affine_quantization.num_channels() == num_channels)) {
-    Context::get_default_context()->throwError(
-        new qConvPerChannelMismatchError);
+    Context::get_default_context()->throwError(qConvPerChannelMismatchError());
   }
 
   // PopulateConvolutionQuantizationParams

@@ -17,15 +17,13 @@ QuantizationParams::~QuantizationParams() {}
 int32_t QuantizationParams::get_zeroP_for_channel(int i) const { 
   pTensor_printf(
       "ERROR, Attempted to use non specialized Quantization params\n");
-  Context::get_default_context()->throwError(
-      new AttemptToUseUnSpecializedQuantizeParamsError());
+  Context::get_default_context()->throwError(AttemptToUseUnSpecializedQuantizeParamsError());
   return 0; 
 }
 float QuantizationParams::get_scale_for_channel(int i) const { 
   pTensor_printf(
       "ERROR, Attempted to use non specialized Quantization params\n");
-  Context::get_default_context()->throwError(
-      new AttemptToUseUnSpecializedQuantizeParamsError());
+  Context::get_default_context()->throwError(AttemptToUseUnSpecializedQuantizeParamsError());
   return 0; 
 }
 // Allocate the tensor metadata on a different heap from the data scratch pads
@@ -39,14 +37,27 @@ void QuantizationParams::operator delete(void* p) {
   Context::get_default_context()->get_metadata_allocator()->deallocate(p);
 }
 
-PerTensorQuantizationParams::PerTensorQuantizationParams(const int32_t& zp,
-                                                         const float& scale)
-    : QuantizationParams(&zp, &scale, 1) {}
+PerTensorQuantizationParams::PerTensorQuantizationParams(int32_t zp,
+                                                         float scale)
+    : QuantizationParams(&_zp_value, &_scale_value, 1),
+      _zp_value(zp),
+      _scale_value(scale) {}
+PerTensorQuantizationParams::PerTensorQuantizationParams(
+    const PerTensorQuantizationParams& that)
+    : QuantizationParams(&_zp_value, &_scale_value, 1),
+      _zp_value(that._zp_value),
+      _scale_value(that._scale_value) {}
+PerTensorQuantizationParams& PerTensorQuantizationParams::operator=(
+    const PerTensorQuantizationParams& that) {
+  _zp_value = that._zp_value;
+  _scale_value = that._scale_value;
+  return *this;
+}
 int32_t PerTensorQuantizationParams::get_zeroP_for_channel(int i) const {
-  return _zp[0];
+  return _zp_value;
 }
 float PerTensorQuantizationParams::get_scale_for_channel(int i) const {
-  return _scale[0];
+  return _scale_value;
 }
 
 int32_t PerChannelQuantizationParams::get_zeroP_for_channel(int i) const {

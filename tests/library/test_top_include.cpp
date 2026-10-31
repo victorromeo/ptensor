@@ -44,3 +44,8 @@ TEST(TopInclude, AddOp) {
     }
   }
 }
+
+int ptensor_second_tu_marker();
+TEST(TopInclude, LinksFromMultipleTranslationUnits) {
+  EXPECT_EQ(ptensor_second_tu_marker(), 42);
+}

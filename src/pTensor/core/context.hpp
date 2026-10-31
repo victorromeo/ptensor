@@ -22,6 +22,13 @@ class Context {
   void set_ram_data_allocator(AllocatorInterface* al);
   void set_ErrorHandler(ErrorHandler* errH);
   void register_tensor(TensorBase* tb);
+  // Report an error to the active handler. Errors are passed by reference so
+  // that raising one never touches the heap (important when the error is
+  // itself an out-of-memory condition). The Error is only valid for the
+  // duration of the handler call.
+  void throwError(const Error& err);
+  // Legacy form: takes ownership of a heap-allocated Error and deletes it once
+  // the handler returns.
   void throwError(Error* err);
   void notifyEvent(const Event& err);
 

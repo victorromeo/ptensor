@@ -20,8 +20,7 @@ class BufferTensor : public TensorInterface {
       : BufferTensor(_shape, ttype_from<T>::type,
                      reinterpret_cast<void*>(buffer)) {
     if (_shape.get_linear_size() != buffer_size) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
   }
 

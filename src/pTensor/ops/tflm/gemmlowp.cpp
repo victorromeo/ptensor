@@ -27,7 +27,7 @@ int32_t MaskIfGreaterThan(int32_t a, int32_t b) { return MaskIfNonZero(a > b); }
 
 int32_t RoundingDivideByPOT(int32_t x, int32_t exponent) {
   if (exponent > 31 || exponent < 0) {
-    Context::get_default_context()->throwError(new InvalidExponentError);
+    Context::get_default_context()->throwError(InvalidExponentError());
   }
   const int32_t mask = (1ll << exponent) - 1;
   const int32_t zero = 0;

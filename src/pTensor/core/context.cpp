@@ -33,7 +33,7 @@ AllocatorInterface* Context::get_metadata_allocator() {
   // TODO Throw error if this is null
   if (!_metadata_allocator) {
     pTensor_printf("[ERROR] Metadata allocator not set in context before it was read\n");
-    throwError(new MemoryAllocatorUnsetError);
+    throwError(MemoryAllocatorUnsetError());
   }
   return _metadata_allocator;
 }
@@ -41,7 +41,7 @@ AllocatorInterface* Context::get_ram_data_allocator() {
   // TODO Throw error if this is null
   if (!_ram_data_allocator) {
     pTensor_printf("[ERROR] Ramdata allocator not set in context before it was read\n");
-    throwError(new MemoryAllocatorUnsetError);
+    throwError(MemoryAllocatorUnsetError());
   }
   return _ram_data_allocator;
 }
@@ -58,13 +58,21 @@ void Context::set_ram_data_allocator(AllocatorInterface* al) {
 
 void Context::register_tensor(TensorBase* tb) {}
 
-void Context::throwError(Error* err) {
-  if (_error_handler){
-    get_default_error_handler()->uThrow(err);
+void Context::throwError(const Error& err) {
+  if (_error_handler) {
+    // Handlers take a mutable pointer for API compatibility; they must not
+    // retain it past the call.
+    Error copy = err;
+    _error_handler->uThrow(&copy);
     return;
   }
   pTensor_printf("[ERROR] an Error has occurred but no handler was set\n");
-  //while(true) {}
+}
+
+void Context::throwError(Error* err) {
+  if (!err) return;
+  throwError(*err);
+  delete err;
 }
 
 void Context::notifyEvent(const Event& evt) {

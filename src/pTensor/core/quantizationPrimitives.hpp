@@ -44,13 +44,22 @@ inline bool is_per_channel_quantization(const QuantizationParams& params) {
   return params.num_channels() > 1;
 }
 
-// MAKE SURE TO NOT INCREASE THE SIZEOF THE NEXT TWO TYPES
+// Keep these types small: they are allocated in the metadata arena.
+//
+// Per-tensor parameters are stored by value. Storing pointers here (as the
+// per-channel variant does) would dangle whenever the caller passes a literal,
+// a temporary, or an `int` on targets where int32_t is `long`.
 class PerTensorQuantizationParams : public QuantizationParams {
  public:
-  PerTensorQuantizationParams(const int32_t& zp, const float& scale);
+  PerTensorQuantizationParams(int32_t zp, float scale);
+  PerTensorQuantizationParams(const PerTensorQuantizationParams& that);
+  PerTensorQuantizationParams& operator=(const PerTensorQuantizationParams& that);
   virtual int32_t get_zeroP_for_channel(int i) const override;
   virtual float get_scale_for_channel(int i) const override;
-  // virtual inline const int num_channels() { return _num_channels; };
+
+ private:
+  int32_t _zp_value;
+  float _scale_value;
 };
 
 class PerChannelQuantizationParams : public QuantizationParams {

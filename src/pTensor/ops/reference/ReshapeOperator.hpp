@@ -26,16 +26,16 @@ public:
     output_tensor->resize(_shape);
     if (input_tensor->num_elems() != output_tensor->num_elems()){
       pTensor_printf("inconsistent input and output shape for reshape\n");
-      Context::get_default_context()->throwError(new InvalidReshapeError);
+      Context::get_default_context()->throwError(InvalidReshapeError());
       return;
     }
     if (input_tensor->get_type() != output_tensor->get_type()){
       pTensor_printf("inconsistent input and output data type for reshape\n");
-      Context::get_default_context()->throwError(new InvalidTensorDataTypeError);
+      Context::get_default_context()->throwError(InvalidTensorDataTypeError());
       return;
     }
     if (!_check_input_shape()){
-      Context::get_default_context()->throwError(new InvalidTensorDataTypeError);
+      Context::get_default_context()->throwError(InvalidTensorDataTypeError());
       return;
     }
     // copy data

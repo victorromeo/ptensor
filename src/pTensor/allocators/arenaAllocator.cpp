@@ -50,7 +50,7 @@ localCircularArenaAllocatorBase::MetaHeader& localCircularArenaAllocatorBase::_r
   // First check if ptr in bounds
   if (ptr < begin() || ptr > end()) {
     // ERROR
-    Context::get_default_context()->throwError(new OutOfMemBoundsError);
+    Context::get_default_context()->throwError(OutOfMemBoundsError());
   }
   for (auto hdr_i = _headers.begin(); hdr_i != _headers.end(); hdr_i++) {
     if (hdr_i->_d == ptr) return *hdr_i;
@@ -71,7 +71,7 @@ void* localCircularArenaAllocatorBase::attempt_to_reuse_inactive_region(size_t s
        aligned_loc =
            std::align(alignof(uint8_t*), sz, aligned_loc, space_change);
        if(aligned_loc == nullptr){
-         Context::get_default_context()->throwError(new InvalidAlignmentAllocation);
+         Context::get_default_context()->throwError(InvalidAlignmentAllocation());
        }
        hdr.set_active();
        // hdr.set_len(sz + hdr.get_len() - space_change);
@@ -98,7 +98,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
   // Check if region is active
   if (!hdr.is_active()) {
     // ERROR
-    Context::get_default_context()->throwError(new InvalidBoundRegionState);
+    Context::get_default_context()->throwError(InvalidBoundRegionState());
   }
   hdr.set_hndl(hndl);
 }
@@ -107,7 +107,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
   MetaHeader& hdr = _read_header(ptr);
   if (!hdr.is_active()) {
     // ERROR
-    Context::get_default_context()->throwError(new InvalidBoundRegionState);
+    Context::get_default_context()->throwError(InvalidBoundRegionState());
   }
   // teehee
   update_hndl(hndl, nullptr);
@@ -120,7 +120,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
   // Check if region is active
   if (!hdr.is_active()) {
     // ERROR
-    Context::get_default_context()->throwError(new MetaHeaderNotBound);
+    Context::get_default_context()->throwError(MetaHeaderNotBound());
   }
   return hdr.is_bound() && (hdr.hndl == hndl);
   ;
@@ -138,7 +138,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
   // If make this capacity then have possibility of filling up
   if (sz > _get_size()) {
     // ERROR
-    Context::get_default_context()->throwError(new OutOfMemError);
+    Context::get_default_context()->throwError(OutOfMemError());
     return nullptr;
   }
   // if(sz > ( end() - (cursor + sizeof(MetaHeader)))){
@@ -150,7 +150,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
     rebalance();
     // If still dont have space, error out
     if (sz > available()) {
-      Context::get_default_context()->throwError(new OutOfMemError);
+      Context::get_default_context()->throwError(OutOfMemError());
       return nullptr;
     }
   }
@@ -173,7 +173,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
   size_t space_change = available();
   aligned_loc = std::align(alignof(uint8_t*), sz, aligned_loc, space_change);
   if(aligned_loc == nullptr){
-    Context::get_default_context()->throwError(new InvalidAlignmentAllocation);
+    Context::get_default_context()->throwError(InvalidAlignmentAllocation());
   }
   hdr.set_active();
   // hdr.set_len(sz + available() - space_change);
@@ -266,7 +266,7 @@ localCircularArenaAllocatorBase::localCircularArenaAllocatorBase(uint8_t* buffer
     aligned_loc = std::align(alignof(uint8_t*), hdr_i->get_len(), aligned_loc,
                              space_change);
     if(aligned_loc == nullptr){
-      Context::get_default_context()->throwError(new InvalidAlignmentAllocation);
+      Context::get_default_context()->throwError(InvalidAlignmentAllocation());
     }
 
     // Shift the data

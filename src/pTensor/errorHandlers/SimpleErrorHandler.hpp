@@ -1,5 +1,6 @@
 #ifndef PTENSOR_SIMPLE_ERROR_HANDLER_HPP
 #define PTENSOR_SIMPLE_ERROR_HANDLER_HPP
+#include <cstddef>
 #include <deque>
 #include <functional>
 

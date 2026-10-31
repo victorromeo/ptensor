@@ -20,6 +20,6 @@ TEST(SimpleCustomErrorHandler, handle_error) {
   });
 
   Context::get_default_context()->set_ErrorHandler(&mErrHandler);
-  Context::get_default_context()->throwError(new MyDumbError);
+  Context::get_default_context()->throwError(MyDumbError());
   EXPECT_EQ(result, true);
 }

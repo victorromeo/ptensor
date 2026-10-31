@@ -563,7 +563,7 @@ void Conv2dOperator<T>::compute() {
 }
 
 template <>
-void Conv2dOperator<int8_t>::compute() {
+inline void Conv2dOperator<int8_t>::compute() {
   bool have_bias = inputs.has(bias);
   ConvFilter<int8_t> conv(inputs[filter].tensor());
   if(have_bias) {
@@ -603,12 +603,10 @@ class DepthwiseSeparableConvOperator : public OperatorInterface<3, 1> {
     TensorShape& out_shape = outputs[out].tensor()->get_shape();
 
     if (in_shape[3] != df_shape[2]) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
     if (pf_shape[0] != 1 || pf_shape[1] != 1) {
-      Context::get_default_context()->throwError(
-          new InvalidTensorDimensionsError);
+      Context::get_default_context()->throwError(InvalidTensorDimensionsError());
     }
     depthwise_separable_convolution_kernel<T>(
         outputs[out].tensor(), inputs[in].tensor(),

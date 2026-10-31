@@ -36,8 +36,7 @@ class QuantizedMatrixMultiplyOperator<int8_t> : public OperatorInterface<3, 1> {
         c_shape.num_dims() > 2 || a_shape[1] != b_shape[0] ||
         a_shape[0] != c_shape[0] || b_shape[1] != c_shape[1]) {
       pTensor_printf("[Error] Invalid matrix multiple shape mismatch\n");
-      Context::get_default_context()->throwError(
-          new pTensor::InvalidMatrixMultIndicesError);
+      Context::get_default_context()->throwError(pTensor::InvalidMatrixMultIndicesError());
     }
     // TODO check that all the Tensor types are int8
 
