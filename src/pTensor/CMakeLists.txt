@@ -60,6 +60,15 @@ target_link_libraries(ptensor PUBLIC ptensor_core )
 target_include_directories(ptensor PUBLIC allocators tensors ops ops/reference ops/tflm errorHandlers)
 target_compile_features(ptensor PUBLIC cxx_std_11)
 
+if(PTENSOR_BUILD_C_API)
+  add_library(ptensor_c SHARED c_api/ptensor_c.cpp)
+  target_link_libraries(ptensor_c PRIVATE ptensor)
+  set_target_properties(ptensor_c PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON)
+  install(TARGETS ptensor_c LIBRARY DESTINATION lib RUNTIME DESTINATION bin)
+endif()
+
 install(TARGETS ptensor ptensor_core
   EXPORT ptensorTargets
   LIBRARY DESTINATION lib

@@ -18,6 +18,9 @@ class Context {
   ErrorHandler* get_default_error_handler();
   AllocatorInterface* get_metadata_allocator();
   AllocatorInterface* get_ram_data_allocator();
+  // Like the getters above, but return nullptr instead of raising when unset.
+  AllocatorInterface* peek_metadata_allocator() const { return _metadata_allocator; }
+  AllocatorInterface* peek_ram_data_allocator() const { return _ram_data_allocator; }
   void set_metadata_allocator(AllocatorInterface* al);
   void set_ram_data_allocator(AllocatorInterface* al);
   void set_ErrorHandler(ErrorHandler* errH);

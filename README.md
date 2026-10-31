@@ -25,6 +25,7 @@ Useful CMake options:
 | `PTENSOR_WITH_SIMPLE_ERROR_HANDLER` | `ON` | Build `SimpleErrorHandler` (uses `std::deque`/`std::function`) |
 | `PTENSOR_BARE_METAL` | `ON` for `Generic` targets | Never call `exit()`; halt instead |
 | `PTENSOR_SIZE_PROBE` | `OFF` | Build a minimal app used to measure footprint |
+| `PTENSOR_BUILD_C_API` | `OFF` | Build `libptensor_c` (C API, used by the Python package) |
 | `PACKAGE_TESTS` | `OFF` | Build the GoogleTest unit tests |
 | `PACKAGE_TUTORIALS` | `OFF` | Build the tutorials |
 | `PTENSOR_SANITIZE` | `OFF` | Build with AddressSanitizer and UBSan |
@@ -33,6 +34,13 @@ Useful CMake options:
 
 CI builds and tests every pull request with GCC, Clang, and a sanitizer build,
 and cross-compiles for a Cortex-M4 to report code size.
+
+## Python and C
+
+`src/pTensor/c_api/ptensor_c.h` is a plain C interface that runs one operator on
+caller-owned buffers. The `python/` package wraps it with NumPy, so you can
+verify layers against NumPy or TensorFlow without writing C. See
+[python/README.md](python/README.md).
 
 ## Compressed weight storage
 

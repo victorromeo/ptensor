@@ -83,3 +83,19 @@ package_add_test_with_libraries(integration_test model/integration_test.cpp pten
 package_add_test_with_libraries(test_simple_error_handler error_handlers/test_errorhandler.cpp ptensor error_handlers "${PROJECT_DIR}/test-data/")
 
 option(INSTALL_GTEST "Enable installation of googletest. (Projects embedding googletest may want to turn this OFF.)" OFF)
+# Python bindings: verify the C API against NumPy reference implementations.
+if(PTENSOR_BUILD_C_API)
+  find_package(Python3 COMPONENTS Interpreter)
+  if(Python3_FOUND)
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+                    RESULT_VARIABLE _ptensor_numpy_missing OUTPUT_QUIET ERROR_QUIET)
+    if(_ptensor_numpy_missing EQUAL 0)
+      add_test(NAME python_bindings
+               COMMAND ${Python3_EXECUTABLE} -m unittest discover -s ${PROJECT_SOURCE_DIR}/python/tests -v)
+      set_tests_properties(python_bindings PROPERTIES
+        ENVIRONMENT "PTENSOR_LIBRARY=$<TARGET_FILE:ptensor_c>;PYTHONPATH=${PROJECT_SOURCE_DIR}/python")
+    else()
+      message(STATUS "NumPy not found: skipping the Python binding tests")
+    endif()
+  endif()
+endif()
