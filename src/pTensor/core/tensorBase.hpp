@@ -52,6 +52,15 @@ class TensorInterface : public TensorBase {
   IntegralValue operator()(uint32_t linear_index);
 
   virtual void resize(const TensorShape& new_shape) = 0;
+  /**
+   * Fast-path access for optimized kernels: a pointer to the whole tensor as
+   * one dense array of get_type() elements, or nullptr if the tensor does not
+   * store its data that way (e.g. PackedRomTensor). The pointer is only valid
+   * until the next allocation from the context's allocators.
+   */
+  virtual const void* raw_data() const { return nullptr; }
+  virtual void* raw_mutable_data() { return nullptr; }
+
   template<typename QType>
   TensorInterface& set_quantization_params(const QType& params);
   const QuantizationParams& get_quantization_params() const;

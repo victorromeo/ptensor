@@ -11,6 +11,8 @@
 
 #include "pTensor/core/context.hpp"
 #include "pTensor/core/errorHandler.hpp"
+#include "pTensor/core/fast_access.hpp"
+#include "pTensor/ops/fast/dense_kernels.hpp"
 #include "pTensor/core/operatorBase.hpp"
 #include "pTensor/core/tensor.hpp"
 
@@ -283,6 +285,21 @@ class DepthwiseConv2dOperator : public OperatorInterface<3, 1> {
     const uint16_t kh = fs[1], kw = fs[2];
     const int32_t pt = layer_detail::pad_before(is[1], os[1], kh, _sh, _dh, _padding);
     const int32_t pl = layer_detail::pad_before(is[2], os[2], kw, _sw, _dw, _padding);
+    if (dense_float(x, f, y, have_bias)) {
+      fast::ConvGeometry g;
+      g.batches = is[0]; g.in_h = is[1]; g.in_w = is[2]; g.in_c = is[3];
+      g.out_h = os[1]; g.out_w = os[2]; g.out_c = os[3];
+      g.k_h = kh; g.k_w = kw;
+      g.stride_h = _sh; g.stride_w = _sw;
+      g.dil_h = _dh; g.dil_w = _dw;
+      g.pad_top = pt; g.pad_left = pl;
+      float* py = fast_write<float>(y);
+      fast::depthwise_conv2d_nhwc(
+          fast_read<float>(x), fast_read<float>(f),
+          have_bias ? fast_read<float>(inputs[bias].tensor()) : nullptr, py, g,
+          _mult);
+      return;
+    }
     for (uint16_t n = 0; n < os[0]; ++n)
       for (uint16_t oy = 0; oy < os[1]; ++oy)
         for (uint16_t ox = 0; ox < os[2]; ++ox)
@@ -309,6 +326,14 @@ class DepthwiseConv2dOperator : public OperatorInterface<3, 1> {
   }
 
  private:
+  // The fast path accumulates in the output row, so it is float-only.
+  bool dense_float(const Tensor& x, const Tensor& f, Tensor& y, bool have_bias) {
+    if (ttype_from<T>::type != flt) return false;
+    if (!fast_read<float>(x) || !fast_read<float>(f) || !fast_write<float>(y))
+      return false;
+    return !have_bias || fast_read<float>(inputs[bias].tensor()) != nullptr;
+  }
+
   uint16_t _sh, _sw;
   Padding _padding;
   uint16_t _mult, _dh, _dw;
@@ -354,6 +379,16 @@ class LstmCellOperator : public OperatorInterface<6, 2> {
       layer_detail::raise_shape_error();
       return;
     }
+    {
+      const float *px = fast_read<float>(tx), *ph = fast_read<float>(th),
+                  *pc = fast_read<float>(tc), *pW = fast_read<float>(tW),
+                  *pU = fast_read<float>(tU), *pb = fast_read<float>(tb);
+      float *pho = fast_write<float>(ho), *pco = fast_write<float>(co);
+      if (px && ph && pc && pW && pU && pb && pho && pco) {
+        fast_compute(px, ph, pc, pW, pU, pb, pho, pco, B, I, H);
+        return;
+      }
+    }
     for (uint16_t bi = 0; bi < B; ++bi) {
       for (uint16_t j = 0; j < H; ++j) {
         float z[4];
@@ -373,6 +408,50 @@ class LstmCellOperator : public OperatorInterface<6, 2> {
         const float cn = fg * static_cast<float>(tc(bi, j)) + ig * gg;
         co(bi, j) = cn;
         ho(bi, j) = og * std::tanh(cn);
+      }
+    }
+  }
+
+ private:
+  // Columns per block: the gate pre-activations for a block live on the stack
+  // (4 * kBlock floats), so W and U are read row by row, contiguously.
+  static const uint16_t kBlock = 16;
+
+  static void fast_compute(const float* x, const float* h, const float* c,
+                           const float* W, const float* U, const float* b,
+                           float* h_out, float* c_out, uint16_t B, uint16_t I,
+                           uint16_t H) {
+    const uint32_t H4 = 4u * H;
+    float z[4][kBlock];
+    for (uint16_t bi = 0; bi < B; ++bi) {
+      const float* xr = x + bi * I;
+      const float* hr = h + bi * H;
+      for (uint16_t j0 = 0; j0 < H; j0 += kBlock) {
+        const uint16_t nj = (H - j0) < kBlock ? (H - j0) : kBlock;
+        for (int g = 0; g < 4; ++g)
+          for (uint16_t jj = 0; jj < nj; ++jj) z[g][jj] = b[g * H + j0 + jj];
+        for (uint16_t k = 0; k < I; ++k) {
+          const float xk = xr[k];
+          const float* row = W + k * H4 + j0;
+          for (int g = 0; g < 4; ++g)
+            for (uint16_t jj = 0; jj < nj; ++jj) z[g][jj] += xk * row[g * H + jj];
+        }
+        for (uint16_t k = 0; k < H; ++k) {
+          const float hk = hr[k];
+          const float* row = U + k * H4 + j0;
+          for (int g = 0; g < 4; ++g)
+            for (uint16_t jj = 0; jj < nj; ++jj) z[g][jj] += hk * row[g * H + jj];
+        }
+        for (uint16_t jj = 0; jj < nj; ++jj) {
+          const uint32_t o = static_cast<uint32_t>(bi) * H + j0 + jj;
+          const float ig = rnn_detail::sigmoid(z[0][jj]);
+          const float fg = rnn_detail::sigmoid(z[1][jj]);
+          const float gg = std::tanh(z[2][jj]);
+          const float og = rnn_detail::sigmoid(z[3][jj]);
+          const float cn = fg * c[o] + ig * gg;
+          c_out[o] = cn;
+          h_out[o] = og * std::tanh(cn);
+        }
       }
     }
   }
@@ -411,6 +490,16 @@ class GruCellOperator : public OperatorInterface<6, 1> {
       layer_detail::raise_shape_error();
       return;
     }
+    {
+      const float *px = fast_read<float>(tx), *ph = fast_read<float>(th),
+                  *pW = fast_read<float>(tW), *pU = fast_read<float>(tU),
+                  *pbx = fast_read<float>(tbx), *pbh = fast_read<float>(tbh);
+      float* pho = fast_write<float>(ho);
+      if (px && ph && pW && pU && pbx && pbh && pho) {
+        fast_compute(px, ph, pW, pU, pbx, pbh, pho, B, I, H);
+        return;
+      }
+    }
     for (uint16_t bi = 0; bi < B; ++bi) {
       for (uint16_t j = 0; j < H; ++j) {
         float xg[3], hg[3];
@@ -430,6 +519,47 @@ class GruCellOperator : public OperatorInterface<6, 1> {
         const float n = std::tanh(xg[2] + r * hg[2]);
         const float hprev = static_cast<float>(th(bi, j));
         ho(bi, j) = z * hprev + (1.0f - z) * n;
+      }
+    }
+  }
+
+ private:
+  static const uint16_t kBlock = 16;
+
+  static void fast_compute(const float* x, const float* h, const float* W,
+                           const float* U, const float* bx, const float* bh,
+                           float* h_out, uint16_t B, uint16_t I, uint16_t H) {
+    const uint32_t H3 = 3u * H;
+    float xg[3][kBlock], hg[3][kBlock];
+    for (uint16_t bi = 0; bi < B; ++bi) {
+      const float* xr = x + bi * I;
+      const float* hr = h + bi * H;
+      for (uint16_t j0 = 0; j0 < H; j0 += kBlock) {
+        const uint16_t nj = (H - j0) < kBlock ? (H - j0) : kBlock;
+        for (int g = 0; g < 3; ++g)
+          for (uint16_t jj = 0; jj < nj; ++jj) {
+            xg[g][jj] = bx[g * H + j0 + jj];
+            hg[g][jj] = bh[g * H + j0 + jj];
+          }
+        for (uint16_t k = 0; k < I; ++k) {
+          const float xk = xr[k];
+          const float* row = W + k * H3 + j0;
+          for (int g = 0; g < 3; ++g)
+            for (uint16_t jj = 0; jj < nj; ++jj) xg[g][jj] += xk * row[g * H + jj];
+        }
+        for (uint16_t k = 0; k < H; ++k) {
+          const float hk = hr[k];
+          const float* row = U + k * H3 + j0;
+          for (int g = 0; g < 3; ++g)
+            for (uint16_t jj = 0; jj < nj; ++jj) hg[g][jj] += hk * row[g * H + jj];
+        }
+        for (uint16_t jj = 0; jj < nj; ++jj) {
+          const uint32_t o = static_cast<uint32_t>(bi) * H + j0 + jj;
+          const float z = rnn_detail::sigmoid(xg[0][jj] + hg[0][jj]);
+          const float r = rnn_detail::sigmoid(xg[1][jj] + hg[1][jj]);
+          const float n = std::tanh(xg[2][jj] + r * hg[2][jj]);
+          h_out[o] = z * hr[j0 + jj] + (1.0f - z) * n;
+        }
       }
     }
   }

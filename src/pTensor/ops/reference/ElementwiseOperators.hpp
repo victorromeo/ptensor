@@ -14,6 +14,8 @@
 
 #include "pTensor/core/context.hpp"
 #include "pTensor/core/errorHandler.hpp"
+#include "pTensor/core/fast_access.hpp"
+#include "pTensor/ops/fast/dense_kernels.hpp"
 #include "pTensor/core/operatorBase.hpp"
 #include "pTensor/core/tensor.hpp"
 
@@ -119,6 +121,15 @@ class BinaryElementwiseOperator : public OperatorInterface<2, 1> {
       return;
     }
     Fn fn;
+    {
+      const T* pa = fast_read<T>(ta);
+      const T* pb = fast_read<T>(tb);
+      T* pc = fast_write<T>(tc);
+      if (pa && pb && pc) {
+        fast::broadcast_zip(pa, va.strides, pb, vb.strides, pc, od, fn);
+        return;
+      }
+    }
     uint32_t oi = 0;
     for (uint32_t i0 = 0; i0 < od[0]; ++i0)
       for (uint32_t i1 = 0; i1 < od[1]; ++i1)
@@ -172,6 +183,12 @@ class UnaryElementwiseOperator : public OperatorInterface<1, 1> {
     const uint32_t n = ti->get_shape().get_linear_size();
     if (n != to->get_shape().get_linear_size()) {
       Context::get_default_context()->throwError(OperatorIOSizeMismatchError());
+      return;
+    }
+    const T* pi = fast_read<T>(ti);
+    T* po = fast_write<T>(to);
+    if (pi && po) {
+      fast::map(pi, po, n, _fn);
       return;
     }
     for (uint32_t i = 0; i < n; ++i) {

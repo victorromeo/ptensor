@@ -12,6 +12,8 @@ class RomTensor : public BufferTensor {
 
  public:
   RomTensor(const TensorShape& _shape, ttype _type, const void* buffer);
+  // Read-only: optimized kernels never get a writable pointer to ROM.
+  virtual void* raw_mutable_data() override { return nullptr; }
 
   // Doing constructors this way lets us check for bounds
   template <typename T, size_t buffer_size>

@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    name: ${{ matrix.compiler }} ${{ matrix.build_type }}${{ matrix.sanitize && ' + sanitizers' || '' }}${{ matrix.python && ' + Python' || '' }}
+    name: ${{ matrix.compiler }} ${{ matrix.build_type }}${{ matrix.sanitize && ' + sanitizers' || '' }}${{ matrix.python && ' + Python' || '' }}${{ matrix.reference_only && ' (reference kernels only)' || '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -23,6 +23,9 @@ jobs:
           - compiler: gcc
             build_type: Release
             python: true
+          - compiler: gcc
+            build_type: Release
+            reference_only: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,6 +50,9 @@ jobs:
           fi
           if [ "${{ matrix.python }}" = "true" ]; then
             EXTRA="$EXTRA -DPTENSOR_BUILD_C_API=ON"
+          fi
+          if [ "${{ matrix.reference_only }}" = "true" ]; then
+            EXTRA="$EXTRA -DPTENSOR_WITH_FAST_KERNELS=OFF"
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DPACKAGE_TESTS=ON -DPACKAGE_TUTORIALS=ON $EXTRA
@@ -76,6 +82,7 @@ jobs:
         run: |
           cmake -S . -B build-m4-min -DCMAKE_BUILD_TYPE=MinSizeRel -DPTENSOR_SIZE_PROBE=ON \
             -DPTENSOR_WITH_QUANTIZED_OPS=OFF -DPTENSOR_WITH_SIMPLE_ERROR_HANDLER=OFF \
+            -DPTENSOR_WITH_FAST_KERNELS=OFF \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi-cortex-m4.cmake
           cmake --build build-m4-min -j"$(nproc)"
       - name: Size report
@@ -83,7 +90,8 @@ jobs:
           {
             echo '### Cortex-M4 size probe (MinSizeRel)'
             echo '```'
-            arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe
+            arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe \
+              build-m4-min/examples/size_probe/ptensor_size_probe
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           arm-none-eabi-size build-m4/examples/size_probe/ptensor_size_probe
@@ -95,3 +103,19 @@ jobs:
           if [ -s heap_callers.txt ]; then
             echo "Heap is used by:"; cat heap_callers.txt; exit 1
           fi
+
+  bench:
+    name: Host kernel benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPTENSOR_BENCH=ON -DPACKAGE_TESTS=OFF
+          cmake --build build -j"$(nproc)" --target ptensor_bench
+          {
+            echo '### Kernel benchmark (best of N, x86-64 runner)'
+            echo '```'
+            ./build/examples/bench/ptensor_bench
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

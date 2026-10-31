@@ -25,6 +25,8 @@ class BufferTensor : public TensorInterface {
   }
 
   bool is_bound_to_buffer() const;
+  virtual const void* raw_data() const override { return _buffer; }
+  virtual void* raw_mutable_data() override { return _buffer; }
   // Check if is bound to this pointer
   bool is_bound_to_buffer(void* b) const;
   bool bind(void* b);

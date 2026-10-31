@@ -10,6 +10,12 @@ size_t calc_required_space(const TensorShape& new_shape, uint8_t _type_size) {
 }
 
 RamTensor::RamTensor() {}
+const void* RamTensor::raw_data() const {
+  return _ram_region ? *_ram_region : nullptr;
+}
+void* RamTensor::raw_mutable_data() {
+  return _ram_region ? *_ram_region : nullptr;
+}
 void* RamTensor::read(uint32_t linear_index) const {
   if (_ram_region) {
     uint8_t* d = reinterpret_cast<uint8_t*>(*_ram_region);

@@ -7,4 +7,8 @@
 /* 1 if SimpleErrorHandler is built in. */
 #cmakedefine01 PTENSOR_WITH_SIMPLE_ERROR_HANDLER
 
+/* 1 if operators use pointer-based fast paths on dense tensors. Turning it
+ * off keeps only the reference loops (smaller code, much slower). */
+#cmakedefine01 PTENSOR_WITH_FAST_KERNELS
+
 #endif

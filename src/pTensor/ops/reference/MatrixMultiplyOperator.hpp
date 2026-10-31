@@ -2,6 +2,8 @@
 #define PTENSOR_MATRIX_MUTL_H
 
 #include "pTensor/core/context.hpp"
+#include "pTensor/core/fast_access.hpp"
+#include "pTensor/ops/fast/dense_kernels.hpp"
 #include "mathOpBase.hpp"
 #include "activationOpBase.hpp"
 
@@ -25,6 +27,17 @@ void matrix_mult_kernel(Tensor& c, const Tensor& a, const Tensor& b) {
       a_shape[0] != c_shape[0] || b_shape[1] != c_shape[1]) {
     pTensor_printf("[Error] Invalid matrix multiple shape mismatch\n");
     Context::get_default_context()->throwError(InvalidMatrixMultIndicesError());
+    return;
+  }
+
+  {
+    const T* pa = fast_read<T>(a);
+    const T* pb = fast_read<T>(b);
+    T* pc = fast_write<T>(c);
+    if (pa && pb && pc) {
+      fast::matmul(pa, pb, pc, a_shape[0], a_shape[1], b_shape[1]);
+      return;
+    }
   }
 
   for (uint32_t i = 0; i < a_shape[0]; i++) {
@@ -58,6 +71,24 @@ void matrix_mult_kernel_v2(Tensor& output, const Tensor& input,
     Context::get_default_context()->throwError(InvalidMatrixMultIndicesError());
   }
   const int accum_depth = filter_shape[0];
+  {
+    // Dense fast path: same sum order as below (d ascending, then + bias).
+    const T* px = fast_read<T>(input);
+    const T* pw = fast_read<T>(filter);
+    T* py = fast_write<T>(output);
+    if (px && pw && py && filter_dim_count == 2 &&
+        filter_shape[1] == output_depth &&
+        input_shape.get_linear_size() ==
+            static_cast<uint32_t>(batches) * accum_depth) {
+      fast::matmul(px, pw, py, batches, accum_depth, output_depth);
+      for (int b = 0; b < batches; ++b) {
+        T* row = py + b * output_depth;
+        for (int out_c = 0; out_c < output_depth; ++out_c)
+          row[out_c] = activation(row[out_c] + static_cast<T>(bias(out_c)));
+      }
+      return;
+    }
+  }
   for (int b = 0; b < batches; ++b) {
     for (int out_c = 0; out_c < output_depth; ++out_c) {
       T acc = 0;
