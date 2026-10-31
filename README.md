@@ -25,6 +25,8 @@ Useful CMake options:
 | `PTENSOR_WITH_FAST_KERNELS` | `ON` | Pointer-based fast paths for dense tensors (see Performance) |
 | `PTENSOR_WITH_SIMPLE_ERROR_HANDLER` | `ON` | Build `SimpleErrorHandler` (uses `std::deque`/`std::function`) |
 | `PTENSOR_BARE_METAL` | `ON` for `Generic` targets | Never call `exit()`; halt instead |
+| `PTENSOR_WITH_HOUGH` | `ON` | Build `HoughRomTensor` (Hough line-codebook weight compression) |
+| `PTENSOR_MNIST_RUNNER` | `OFF` | Build the MNIST quantisation-mode runner (`examples/mnist_modes`) |
 | `PTENSOR_SIZE_PROBE` | `OFF` | Build a minimal app used to measure footprint |
 | `PTENSOR_BENCH` | `OFF` | Build the host kernel benchmark |
 | `PTENSOR_BUILD_C_API` | `OFF` | Build `libptensor_c` (C API, used by the Python package) |
@@ -130,6 +132,28 @@ Tensor w = new PackedRomTensor({16, 8}, flt,
 
 `pTensor/util/packing.hpp` has the matching host-side helpers
 (`pack_bits`, `float_to_half`) for producing packed arrays.
+
+### Hough line-codebook compression
+
+`HoughRomTensor` (`-DPTENSOR_WITH_HOUGH=ON`, the default) stores weights as
+pairs of values coded against a small codebook of straight lines found with a
+Hough transform: `(line_bits + t_bits) / 2` bits per weight plus 16 bytes per
+line, decoded with a lookup and two multiply-adds. At equal storage it has
+19–25% lower squared error than the best scalar quantiser on the MNIST dense
+layer, and at 2 bits per weight QAT-trained MNIST averages 98.05% accuracy
+against 97.20% for 2-bit `uint` (float32: 98.37%). At 3 and 4 bits the two are
+level after QAT, so `uint` remains the better choice there. It is a separate tensor class, so other tensors
+and operators are unchanged (the Cortex-M4 size probe is byte-identical; the
+class is 772 bytes of flash when used). Design, format and measurements:
+[docs/hough_quantisation.md](docs/hough_quantisation.md).
+
+### Quantisation-aware training and every mode on MNIST
+
+`python/ptensor/qat.py` takes a float Keras model, reports its size and the
+estimated size in any storage mode, fine-tunes it with the quantised weights in
+the loop, then reports accuracy and the final size.
+[examples/mnist_modes](examples/mnist_modes/README.md) does that for every
+mode and benchmarks each on pTensor ([results](examples/mnist_modes/RESULTS.md)).
 
 ## Keeping the footprint small
 

@@ -39,6 +39,9 @@ package_add_test_with_libraries(test_ramtensor tensors/test_ramtensor.cpp ptenso
 package_add_test_with_libraries(test_buffertensor tensors/test_buffertensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_romtensor tensors/test_romtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_packedromtensor tensors/test_packedromtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+if(PTENSOR_WITH_HOUGH)
+  package_add_test_with_libraries(test_houghromtensor tensors/test_houghromtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+endif()
 package_add_test_with_libraries(test_extended_ops operators/test_extended_ops.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Operators

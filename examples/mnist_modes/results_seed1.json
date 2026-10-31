@@ -1,0 +1,89 @@
+{
+ "seed": 1,
+ "results": [
+  {
+   "mode": "uint2",
+   "float32_bytes": 106792,
+   "estimated_bytes": 6954,
+   "ptq_accuracy": 0.7764,
+   "keras_accuracy": 0.9756,
+   "bytes": 6954,
+   "storage": "conv1: uint2, conv2: uint2, dense: uint2, logits: uint2",
+   "file_bytes": 7091,
+   "accuracy": 0.9756,
+   "us_per_image": 6397.75,
+   "runner_weight_bytes": 6954,
+   "us_per_image_ram": 251.93
+  },
+  {
+   "mode": "hough2",
+   "float32_bytes": 106792,
+   "estimated_bytes": 7074,
+   "ptq_accuracy": 0.9457,
+   "keras_accuracy": 0.9799,
+   "bytes": 7074,
+   "storage": "conv1: uint2, conv2: hough L=4 t=4 stride=1, dense: hough L=4 t=4 stride=32, logits: uint2",
+   "file_bytes": 7207,
+   "accuracy": 0.9799,
+   "us_per_image": 6220.13,
+   "runner_weight_bytes": 7074,
+   "us_per_image_ram": 262.24
+  },
+  {
+   "mode": "uint3",
+   "float32_bytes": 106792,
+   "estimated_bytes": 10283,
+   "ptq_accuracy": 0.9742,
+   "keras_accuracy": 0.9826,
+   "bytes": 10283,
+   "storage": "conv1: uint3, conv2: uint3, dense: uint3, logits: uint3",
+   "file_bytes": 10420,
+   "accuracy": 0.9826,
+   "us_per_image": 6460.62,
+   "runner_weight_bytes": 10283,
+   "us_per_image_ram": 270.57
+  },
+  {
+   "mode": "hough3",
+   "float32_bytes": 106792,
+   "estimated_bytes": 10535,
+   "ptq_accuracy": 0.9765,
+   "keras_accuracy": 0.979,
+   "bytes": 10535,
+   "storage": "conv1: uint3, conv2: uint3, dense: hough L=16 t=4 stride=32, logits: uint3",
+   "file_bytes": 10670,
+   "accuracy": 0.979,
+   "us_per_image": 6611.26,
+   "runner_weight_bytes": 10535,
+   "us_per_image_ram": 261.46
+  },
+  {
+   "mode": "uint4",
+   "float32_bytes": 106792,
+   "estimated_bytes": 13612,
+   "ptq_accuracy": 0.978,
+   "keras_accuracy": 0.9828,
+   "bytes": 13612,
+   "storage": "conv1: uint4, conv2: uint4, dense: uint4, logits: uint4",
+   "file_bytes": 13749,
+   "accuracy": 0.9828,
+   "us_per_image": 6387.57,
+   "runner_weight_bytes": 13612,
+   "us_per_image_ram": 273.87
+  },
+  {
+   "mode": "hough4",
+   "float32_bytes": 106792,
+   "estimated_bytes": 13864,
+   "ptq_accuracy": 0.9745,
+   "keras_accuracy": 0.9835,
+   "bytes": 13864,
+   "storage": "conv1: uint4, conv2: uint4, dense: hough L=16 t=16 stride=32, logits: uint4",
+   "file_bytes": 13999,
+   "accuracy": 0.9835,
+   "us_per_image": 6388.35,
+   "runner_weight_bytes": 13864,
+   "us_per_image_ram": 268.62
+  }
+ ]
+}
