@@ -42,6 +42,33 @@ caller-owned buffers. The `python/` package wraps it with NumPy, so you can
 verify layers against NumPy or TensorFlow without writing C. See
 [python/README.md](python/README.md).
 
+## Layer types
+
+Every operator is a header-only template, so a layer you never use adds
+nothing to your firmware (the Cortex-M4 size probe is the same 7.9 KB with or
+without these headers included).
+
+| Group | Operators |
+| --- | --- |
+| Dense / conv | `MatrixMultOperator`, `FullyConnectedOperator`, `Conv2dOperator`, `DepthwiseConv2dOperator` (stride, dilation, depth multiplier), TFLM int8 conv / depthwise / FC |
+| Pooling | `MaxPoolOperator`, `MinPoolOperator`, `AvgPoolOperator`, `GlobalAveragePoolOperator` |
+| Normalisation | `BatchNormOperator`, `ChannelAffineOperator` (folded batch norm), `SoftmaxOperator` |
+| Recurrent | `LstmCellOperator`, `GruCellOperator` (Keras weight layout) |
+| Shape | `ReshapeOperator`, `PadOperator`, `ConcatOperator` |
+| Elementwise binary (NumPy broadcasting, rank ≤ 4) | `BroadcastAddOperator`, `Sub`, `Mul`, `Div`, `Maximum`, `Minimum`, `SquaredDifference`, `Pow` (`XOperator<T>`) |
+| Activations | ReLU, ReLU6, Sigmoid, Tanh, LeakyReLU, ELU, SELU, HardSigmoid, HardSwish, Swish/SiLU, GELU, Softplus, Softsign, Clip |
+| Math | Abs, Neg, Square, Sqrt, Rsqrt, Exp, Log, Floor, Ceil, Round, Sin, Cos |
+| Quantisation | `QuantizeOperator`, `DequantizeOperator` |
+| Reductions | `ArgMaxOperator`, `ArgMinOperator` |
+
+Activation and math operators are `UnaryElementwiseOperator<T, Fn>` with a small
+functor, so adding your own takes a few lines:
+
+```cpp
+struct Mish { float operator()(float x) const { return x * std::tanh(std::log1p(std::exp(x))); } };
+using MishOperator = ReferenceOperators::UnaryElementwiseOperator<float, Mish>;
+```
+
 ## Compressed weight storage
 
 `PackedRomTensor` keeps model constants compressed in flash and decodes each

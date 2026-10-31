@@ -33,10 +33,22 @@ values = ptensor.decode_packed(packed, ptensor.PackedFormat.UINT_BITS, 100,
                                bits=6, scale=0.02, zero_point=32)
 ```
 
-Available: `matmul`, `fully_connected`, `add`, `relu`, `relu6`, `sigmoid`,
-`tanh`, `softmax`, `conv2d`, `maxpool2d`, `avgpool2d`, `quantize`,
-`dequantize`, `fully_connected_int8`, `pack_bits`, `decode_packed`,
-`packed_size`, `float_to_half`, `half_to_float`.
+Available:
+
+- Dense and conv: `matmul`, `fully_connected`, `conv2d`, `depthwise_conv2d`
+- Pooling: `maxpool2d`, `avgpool2d`, `global_avgpool2d`
+- Recurrent: `lstm_cell`, `gru_cell` (Keras weight layout)
+- Normalisation and shape: `batch_norm`, `softmax`, `pad2d`, `concat`
+- Elementwise with broadcasting: `add` (equal shapes), `broadcast_add`, `sub`,
+  `mul`, `div`, `maximum`, `minimum`, `squared_difference`, `power`, or
+  `binary(name, a, b)`
+- Activations and math: `relu`, `relu6`, `sigmoid`, `tanh`, `leaky_relu`,
+  `elu`, `clip`, and `unary(name, x)` for everything in `ptensor.UNARY_OPS`
+  (selu, hard_sigmoid, hard_swish, swish, gelu, softplus, softsign, abs, neg,
+  square, sqrt, rsqrt, exp, log, floor, ceil, round, sin, cos)
+- Quantisation: `quantize`, `dequantize`, `fully_connected_int8`
+- Packing: `pack_bits`, `decode_packed`, `packed_size`, `float_to_half`,
+  `half_to_float`
 
 ## Tests
 

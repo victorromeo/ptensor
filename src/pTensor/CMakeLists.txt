@@ -16,6 +16,7 @@ set(src_ptensor_tensors
 
 set(src_ptensor_ops
    ops/reference/MatrixMultiplyOperator.cpp
+   ops/reference/reference_ops.cpp
    )
 
 set(src_ptensor_errhndl

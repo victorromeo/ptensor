@@ -50,6 +50,8 @@
 #include "pTensor/ops/reference/MinPoolOperator.hpp"
 #include "pTensor/ops/reference/TransposeOperator.hpp"
 #include "pTensor/ops/reference/ReshapeOperator.hpp"
+#include "pTensor/ops/reference/ElementwiseOperators.hpp"
+#include "pTensor/ops/reference/LayerOperators.hpp"
 
 
 /*

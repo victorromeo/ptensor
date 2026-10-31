@@ -117,6 +117,107 @@ PTENSOR_C_EXPORT int ptensor_avgpool2d_f32(const float* in, uint32_t n,
                                            uint32_t stride_h, uint32_t stride_w,
                                            int padding, float* out);
 
+/* ---- extended float operators ---------------------------------------- */
+
+typedef enum {
+  PTENSOR_BINARY_ADD = 0,
+  PTENSOR_BINARY_SUB = 1,
+  PTENSOR_BINARY_MUL = 2,
+  PTENSOR_BINARY_DIV = 3,
+  PTENSOR_BINARY_MAXIMUM = 4,
+  PTENSOR_BINARY_MINIMUM = 5,
+  PTENSOR_BINARY_SQUARED_DIFFERENCE = 6,
+  PTENSOR_BINARY_POW = 7,
+} ptensor_binary_op;
+
+typedef enum {
+  PTENSOR_UNARY_LEAKY_RELU = 0, /* p0 = alpha */
+  PTENSOR_UNARY_ELU = 1,        /* p0 = alpha */
+  PTENSOR_UNARY_SELU = 2,
+  PTENSOR_UNARY_HARD_SIGMOID = 3,
+  PTENSOR_UNARY_HARD_SWISH = 4,
+  PTENSOR_UNARY_SWISH = 5,
+  PTENSOR_UNARY_GELU = 6,
+  PTENSOR_UNARY_SOFTPLUS = 7,
+  PTENSOR_UNARY_SOFTSIGN = 8,
+  PTENSOR_UNARY_ABS = 9,
+  PTENSOR_UNARY_NEG = 10,
+  PTENSOR_UNARY_SQUARE = 11,
+  PTENSOR_UNARY_SQRT = 12,
+  PTENSOR_UNARY_RSQRT = 13,
+  PTENSOR_UNARY_EXP = 14,
+  PTENSOR_UNARY_LOG = 15,
+  PTENSOR_UNARY_FLOOR = 16,
+  PTENSOR_UNARY_CEIL = 17,
+  PTENSOR_UNARY_ROUND = 18,
+  PTENSOR_UNARY_SIN = 19,
+  PTENSOR_UNARY_COS = 20,
+  PTENSOR_UNARY_CLIP = 21, /* p0 = min, p1 = max */
+} ptensor_unary_op;
+
+/**
+ * Elementwise binary op with NumPy broadcasting (rank <= 4). `out` must hold
+ * the broadcast shape of a and b; incompatible shapes return
+ * PTENSOR_INVALID_ARGUMENT.
+ */
+PTENSOR_C_EXPORT int ptensor_binary_f32(int op, const float* a,
+                                        const uint32_t* a_shape,
+                                        uint32_t a_rank, const float* b,
+                                        const uint32_t* b_shape,
+                                        uint32_t b_rank, float* out);
+PTENSOR_C_EXPORT int ptensor_unary_f32(int op, const float* in, float* out,
+                                       uint32_t count, float p0, float p1);
+
+/** out = (in - mean) / sqrt(var + eps) * gamma + beta over the last axis. */
+PTENSOR_C_EXPORT int ptensor_batchnorm_f32(const float* in, uint32_t count,
+                                           uint32_t channels, const float* mean,
+                                           const float* variance,
+                                           const float* gamma,
+                                           const float* beta, float epsilon,
+                                           float* out);
+
+/** Constant-pad an NHWC tensor in H and W. */
+PTENSOR_C_EXPORT int ptensor_pad2d_f32(const float* in, uint32_t n, uint32_t h,
+                                       uint32_t w, uint32_t c, uint32_t top,
+                                       uint32_t bottom, uint32_t left,
+                                       uint32_t right, float value, float* out);
+
+/** Concatenate a and b (same rank <= 4) along axis. */
+PTENSOR_C_EXPORT int ptensor_concat_f32(const float* a, const uint32_t* a_shape,
+                                        const float* b, const uint32_t* b_shape,
+                                        uint32_t rank, int axis, float* out);
+
+/** [n,h,w,c] -> [n,c] spatial mean. */
+PTENSOR_C_EXPORT int ptensor_global_avgpool_f32(const float* in, uint32_t n,
+                                                uint32_t h, uint32_t w,
+                                                uint32_t c, float* out);
+
+/**
+ * Depthwise conv. in: [n,h,w,c], filter: [1,kh,kw,c*mult], bias: [c*mult] or
+ * NULL, out: [n,out_h,out_w,c*mult] (out size from ptensor_conv_output_size
+ * using the dilated kernel size (k-1)*d+1).
+ */
+PTENSOR_C_EXPORT int ptensor_depthwise_conv2d_f32(
+    const float* in, uint32_t n, uint32_t h, uint32_t w, uint32_t c,
+    const float* filter, uint32_t kh, uint32_t kw, uint32_t multiplier,
+    const float* bias, uint32_t stride_h, uint32_t stride_w, int padding,
+    uint32_t dilation_h, uint32_t dilation_w, float* out);
+
+/** One LSTM step (Keras gate order i,f,c,o). W: [in,4H], U: [H,4H], b: [4H]. */
+PTENSOR_C_EXPORT int ptensor_lstm_cell_f32(const float* x, const float* h,
+                                           const float* c, const float* W,
+                                           const float* U, const float* b,
+                                           uint32_t batch, uint32_t in_features,
+                                           uint32_t hidden, float* h_out,
+                                           float* c_out);
+
+/** One GRU step (Keras z,r,h; reset_after). W: [in,3H], U: [H,3H]. */
+PTENSOR_C_EXPORT int ptensor_gru_cell_f32(const float* x, const float* h,
+                                          const float* W, const float* U,
+                                          const float* bx, const float* bh,
+                                          uint32_t batch, uint32_t in_features,
+                                          uint32_t hidden, float* h_out);
+
 /* ---- int8 quantization ------------------------------------------------ */
 
 /** q = clamp(round(x / scale) + zero_point) */

@@ -39,6 +39,7 @@ package_add_test_with_libraries(test_ramtensor tensors/test_ramtensor.cpp ptenso
 package_add_test_with_libraries(test_buffertensor tensors/test_buffertensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_romtensor tensors/test_romtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_packedromtensor tensors/test_packedromtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_extended_ops operators/test_extended_ops.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Operators
 package_add_test_with_libraries(test_arith operators/test_arithmetic.cpp ptensor operators "${PROJECT_DIR}/test-data/")

@@ -221,3 +221,211 @@ def fully_connected_int8(x, x_scale, x_zero_point, weights, w_scale, bias,
         out_scale, out_zero_point, x.shape[0], x.shape[1], w.shape[1],
         _activation(activation)))
     return out
+
+
+# --- Extended layer types -------------------------------------------------
+
+_BINARY = {"add": 0, "sub": 1, "mul": 2, "div": 3, "maximum": 4, "minimum": 5,
+           "squared_difference": 6, "pow": 7}
+
+_UNARY = {"leaky_relu": 0, "elu": 1, "selu": 2, "hard_sigmoid": 3,
+          "hard_swish": 4, "swish": 5, "gelu": 6, "softplus": 7, "softsign": 8,
+          "abs": 9, "neg": 10, "square": 11, "sqrt": 12, "rsqrt": 13, "exp": 14,
+          "log": 15, "floor": 16, "ceil": 17, "round": 18, "sin": 19, "cos": 20,
+          "clip": 21}
+
+
+def _u32arr(shape):
+    a = np.ascontiguousarray(shape if len(shape) else (1,), dtype=np.uint32)
+    return a, _ptr(a, ctypes.c_uint32)
+
+
+def binary(op, a, b):
+    """Elementwise binary op with NumPy broadcasting (rank <= 4) in float32.
+
+    op is one of: add, sub, mul, div, maximum, minimum, squared_difference, pow.
+    """
+    if op not in _BINARY:
+        raise ValueError("unknown binary op %r" % (op,))
+    a = _arr(a, np.float32)
+    b = _arr(b, np.float32)
+    shape = np.broadcast_shapes(a.shape, b.shape)
+    if max(a.ndim, b.ndim) > 4:
+        raise ValueError("binary ops support rank <= 4")
+    out = np.empty(shape, np.float32)
+    sa, pa = _u32arr(a.shape)
+    sb, pb = _u32arr(b.shape)
+    _check(op, lib.ptensor_binary_f32(_BINARY[op], _f32(a), pa, max(a.ndim, 1),
+                                      _f32(b), pb, max(b.ndim, 1), _f32(out)))
+    return out
+
+
+def _binary(name):
+    def op(a, b):
+        return binary(name, a, b)
+    op.__name__ = name
+    op.__doc__ = "Elementwise %s with broadcasting in float32." % name
+    return op
+
+
+sub = _binary("sub")
+mul = _binary("mul")
+div = _binary("div")
+maximum = _binary("maximum")
+minimum = _binary("minimum")
+squared_difference = _binary("squared_difference")
+power = _binary("pow")
+
+
+def broadcast_add(a, b):
+    """a + b with NumPy broadcasting in float32."""
+    return binary("add", a, b)
+
+
+def unary(op, x, p0=0.0, p1=0.0):
+    """Elementwise activation / math op in float32 (see UNARY_OPS)."""
+    if op not in _UNARY:
+        raise ValueError("unknown unary op %r" % (op,))
+    x = _arr(x, np.float32)
+    out = np.empty_like(x)
+    _check(op, lib.ptensor_unary_f32(_UNARY[op], _f32(x), _f32(out), x.size,
+                                     float(p0), float(p1)))
+    return out
+
+
+UNARY_OPS = tuple(sorted(_UNARY))
+
+
+def leaky_relu(x, alpha=0.2):
+    return unary("leaky_relu", x, alpha)
+
+
+def elu(x, alpha=1.0):
+    return unary("elu", x, alpha)
+
+
+def clip(x, lo, hi):
+    return unary("clip", x, lo, hi)
+
+
+def batch_norm(x, mean, variance, gamma, beta, epsilon=1e-3):
+    """Inference batch norm over the last axis (channels) in float32."""
+    x = _arr(x, np.float32)
+    c = x.shape[-1]
+    params = [_arr(p, np.float32).reshape(-1) for p in (mean, variance, gamma, beta)]
+    if any(p.shape[0] != c for p in params):
+        raise ValueError("mean/variance/gamma/beta must have x.shape[-1] elements")
+    out = np.empty_like(x)
+    _check("batch_norm", lib.ptensor_batchnorm_f32(
+        _f32(x), x.size, c, *[_f32(p) for p in params], float(epsilon), _f32(out)))
+    return out
+
+
+def pad2d(x, top, bottom, left, right, value=0.0):
+    """Pad the H and W axes of an NHWC tensor with a constant."""
+    x = _arr(x, np.float32)
+    if x.ndim != 4:
+        raise ValueError("pad2d expects x[n,h,w,c]")
+    n, h, w, c = x.shape
+    out = np.empty((n, h + top + bottom, w + left + right, c), np.float32)
+    _check("pad2d", lib.ptensor_pad2d_f32(_f32(x), n, h, w, c, top, bottom,
+                                          left, right, float(value), _f32(out)))
+    return out
+
+
+def concat(a, b, axis=-1):
+    """Concatenate two float32 tensors of equal rank (<= 4) along axis."""
+    a = _arr(a, np.float32)
+    b = _arr(b, np.float32)
+    if a.ndim != b.ndim or not 1 <= a.ndim <= 4:
+        raise ValueError("concat expects two tensors of the same rank (1..4)")
+    ax = axis + a.ndim if axis < 0 else axis
+    shape = list(a.shape)
+    shape[ax] += b.shape[ax]
+    out = np.empty(shape, np.float32)
+    sa, pa = _u32arr(a.shape)
+    sb, pb = _u32arr(b.shape)
+    _check("concat", lib.ptensor_concat_f32(_f32(a), pa, _f32(b), pb, a.ndim,
+                                            axis, _f32(out)))
+    return out
+
+
+def global_avgpool2d(x):
+    """Mean over H and W of an NHWC tensor, giving [n, c]."""
+    x = _arr(x, np.float32)
+    if x.ndim != 4:
+        raise ValueError("global_avgpool2d expects x[n,h,w,c]")
+    n, h, w, c = x.shape
+    out = np.empty((n, c), np.float32)
+    _check("global_avgpool2d", lib.ptensor_global_avgpool_f32(_f32(x), n, h, w, c, _f32(out)))
+    return out
+
+
+def depthwise_conv2d(x, filters, bias=None, stride=1, padding="SAME",
+                     depth_multiplier=1, dilation=1):
+    """Depthwise conv, x: NHWC, filters: [1, kh, kw, c * depth_multiplier]."""
+    x = _arr(x, np.float32)
+    f = _arr(filters, np.float32)
+    if x.ndim != 4 or f.ndim != 4 or f.shape[0] != 1:
+        raise ValueError("depthwise_conv2d expects x[n,h,w,c] and filters[1,kh,kw,c*m]")
+    n, h, w, c = x.shape
+    _, kh, kw, oc = f.shape
+    m = int(depth_multiplier)
+    if oc != c * m:
+        raise ValueError("filters.shape[3] must be c * depth_multiplier")
+    sh, sw = _pair(stride)
+    dh, dw = _pair(dilation)
+    pad = _padding(padding)
+    oh = lib.ptensor_conv_output_size(h, (kh - 1) * dh + 1, sh, pad)
+    ow = lib.ptensor_conv_output_size(w, (kw - 1) * dw + 1, sw, pad)
+    if not oh or not ow:
+        raise ValueError("kernel does not fit the input")
+    b = None if bias is None else _arr(bias, np.float32).reshape(-1)
+    if b is not None and b.shape[0] != oc:
+        raise ValueError("bias must have c * depth_multiplier elements")
+    out = np.empty((n, oh, ow, oc), np.float32)
+    _check("depthwise_conv2d", lib.ptensor_depthwise_conv2d_f32(
+        _f32(x), n, h, w, c, _f32(f), kh, kw, m, _opt_ptr(b, ctypes.c_float),
+        sh, sw, pad, dh, dw, _f32(out)))
+    return out
+
+
+def lstm_cell(x, h, c, W, U, b):
+    """One LSTM step (Keras layout, gates i, f, c, o). Returns (h_new, c_new).
+
+    x[batch,in], h/c[batch,hidden], W[in,4*hidden], U[hidden,4*hidden], b[4*hidden].
+    """
+    x, h, c, W, U = (_arr(np.atleast_2d(t), np.float32) for t in (x, h, c, W, U))
+    b = _arr(b, np.float32).reshape(-1)
+    batch, nin = x.shape
+    hidden = h.shape[1]
+    if W.shape != (nin, 4 * hidden) or U.shape != (hidden, 4 * hidden) or \
+            b.shape[0] != 4 * hidden or c.shape != h.shape or h.shape[0] != batch:
+        raise ValueError("lstm_cell shapes do not match the Keras layout")
+    h_out = np.empty_like(h)
+    c_out = np.empty_like(c)
+    _check("lstm_cell", lib.ptensor_lstm_cell_f32(
+        _f32(x), _f32(h), _f32(c), _f32(W), _f32(U), _f32(b), batch, nin, hidden,
+        _f32(h_out), _f32(c_out)))
+    return h_out, c_out
+
+
+def gru_cell(x, h, W, U, bx, bh):
+    """One GRU step (Keras reset_after=True layout, gates z, r, h).
+
+    x[batch,in], h[batch,hidden], W[in,3*hidden], U[hidden,3*hidden],
+    bx/bh[3*hidden] (the two rows of Keras' bias).
+    """
+    x, h, W, U = (_arr(np.atleast_2d(t), np.float32) for t in (x, h, W, U))
+    bx = _arr(bx, np.float32).reshape(-1)
+    bh = _arr(bh, np.float32).reshape(-1)
+    batch, nin = x.shape
+    hidden = h.shape[1]
+    if W.shape != (nin, 3 * hidden) or U.shape != (hidden, 3 * hidden) or \
+            bx.shape[0] != 3 * hidden or bh.shape[0] != 3 * hidden:
+        raise ValueError("gru_cell shapes do not match the Keras layout")
+    h_out = np.empty_like(h)
+    _check("gru_cell", lib.ptensor_gru_cell_f32(
+        _f32(x), _f32(h), _f32(W), _f32(U), _f32(bx), _f32(bh), batch, nin,
+        hidden, _f32(h_out)))
+    return h_out

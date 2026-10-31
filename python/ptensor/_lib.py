@@ -81,3 +81,15 @@ _sig("ptensor_pack_bits", _int, _u32p, _u32, _u32, _u8p)
 _sig("ptensor_decode_packed_f32", _int, _int, _u32, _f32, _i32, ctypes.c_void_p, _u32, _f32p)
 _sig("ptensor_float_to_half", ctypes.c_uint16, _f32)
 _sig("ptensor_half_to_float", _f32, ctypes.c_uint16)
+_sig("ptensor_binary_f32", _int, _int, _f32p, _u32p, _u32, _f32p, _u32p, _u32, _f32p)
+_sig("ptensor_unary_f32", _int, _int, _f32p, _f32p, _u32, _f32, _f32)
+_sig("ptensor_batchnorm_f32", _int, _f32p, _u32, _u32, _f32p, _f32p, _f32p, _f32p, _f32, _f32p)
+_sig("ptensor_pad2d_f32", _int, _f32p, _u32, _u32, _u32, _u32, _u32, _u32, _u32, _u32, _f32, _f32p)
+_sig("ptensor_concat_f32", _int, _f32p, _u32p, _f32p, _u32p, _u32, _int, _f32p)
+_sig("ptensor_global_avgpool_f32", _int, _f32p, _u32, _u32, _u32, _u32, _f32p)
+_sig("ptensor_depthwise_conv2d_f32", _int, _f32p, _u32, _u32, _u32, _u32, _f32p,
+     _u32, _u32, _u32, _f32p, _u32, _u32, _int, _u32, _u32, _f32p)
+_sig("ptensor_lstm_cell_f32", _int, _f32p, _f32p, _f32p, _f32p, _f32p, _f32p,
+     _u32, _u32, _u32, _f32p, _f32p)
+_sig("ptensor_gru_cell_f32", _int, _f32p, _f32p, _f32p, _f32p, _f32p, _f32p,
+     _u32, _u32, _u32, _f32p)
