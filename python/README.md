@@ -62,6 +62,12 @@ Available:
   `report_current()`, `report_estimate()`, `fit()`, `report_final()`,
   `export()`; modes in `ptensor.qat.MODES` (float64/32/16, int16, int8,
   uint2..uint7, hough2/3/4, quad2..quad8/quad16, cubic2..cubic8/cubic16). `ptensor.ptm` writes the result as a `.ptm` model.
+- Structured pruning (needs TensorFlow): `PrunedModel(model, ratio)` removes
+  whole Conv2D filters and Dense units (ratio per model or `{layer: ratio}`)
+  with the same `report_current()`, `report_estimate()`, `fit()`,
+  `report_final()` steps; `.model` is a plain smaller Keras model that can go
+  straight into `QATModel`. `ptensor.prune.sensitivity()` shows which layers
+  tolerate pruning. See `ptensor.prune`.
 
 ## MNIST example
 
@@ -70,6 +76,8 @@ through these bindings and checks it against TFLite. See
 [examples/mnist](../examples/mnist/README.md).
 [examples/mnist_modes](../examples/mnist_modes/README.md) trains the same
 network in every storage mode with QAT and benchmarks each on pTensor.
+[examples/mnist_pruning](../examples/mnist_pruning/README.md) does the same for
+structured pruning, alone and combined with quantisation.
 
 ## Tests
 

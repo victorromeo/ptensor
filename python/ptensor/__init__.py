@@ -58,10 +58,11 @@ from .packing import (
     packed_size,
 )
 
-from . import hough, polyquant, ptm, qat  # noqa: E402  (NumPy only; QAT imports TensorFlow lazily)
+from . import hough, polyquant, prune, ptm, qat  # noqa: E402  (NumPy only; QAT imports TensorFlow lazily)
 from .hough import HoughCode, hough_quantize
 from .polyquant import PolyCode, poly_quantize
 from .qat import QATModel, get_format
+from .prune import PrunedModel
 
 __version__ = _lib.ptensor_version().decode()
 
@@ -73,6 +74,7 @@ __all__ = [
     "pack_bits", "packed_size",
     "hough", "qat", "ptm", "HoughCode", "hough_quantize",
     "polyquant", "PolyCode", "poly_quantize", "QATModel", "get_format",
+    "prune", "PrunedModel",
     "UNARY_OPS",
     "conv2d_int8",
     "maxpool2d_int8",

@@ -1,0 +1,295 @@
+{
+ "baseline_keras_accuracy": 0.9772,
+ "sensitivity": {
+  "conv1": {
+   "0.25": 0.9767,
+   "0.5": 0.9423,
+   "0.75": 0.9222,
+   "0.9": 0.2163
+  },
+  "conv2": {
+   "0.25": 0.9471,
+   "0.5": 0.8561,
+   "0.75": 0.5305,
+   "0.9": 0.321
+  },
+  "dense": {
+   "0.25": 0.9772,
+   "0.5": 0.7281,
+   "0.75": 0.6087,
+   "0.9": 0.2367
+  }
+ },
+ "results": [
+  {
+   "run": "float32",
+   "ratio": 0.0,
+   "steps": 1,
+   "mode": "float32",
+   "oneshot_accuracy": 0.9772,
+   "widths": [
+    8,
+    16,
+    32,
+    10
+   ],
+   "params": 26632,
+   "float32_bytes": 106792,
+   "macs": 307648,
+   "accuracy": 0.9837,
+   "us_per_image": 311.3,
+   "bytes": 106792
+  },
+  {
+   "run": "prune25",
+   "ratio": 0.25,
+   "steps": 1,
+   "mode": "float32",
+   "oneshot_accuracy": 0.9619,
+   "widths": [
+    6,
+    12,
+    24,
+    10
+   ],
+   "params": 15054,
+   "float32_bytes": 60424,
+   "macs": 183696,
+   "accuracy": 0.9821,
+   "us_per_image": 233.52,
+   "bytes": 60424
+  },
+  {
+   "run": "prune50",
+   "ratio": 0.5,
+   "steps": 1,
+   "mode": "float32",
+   "oneshot_accuracy": 0.7386,
+   "widths": [
+    4,
+    8,
+    16,
+    10
+   ],
+   "params": 6756,
+   "float32_bytes": 27176,
+   "macs": 91104,
+   "accuracy": 0.9775,
+   "us_per_image": 130.09,
+   "bytes": 27176
+  },
+  {
+   "run": "prune75",
+   "ratio": 0.75,
+   "steps": 1,
+   "mode": "float32",
+   "oneshot_accuracy": 0.3426,
+   "widths": [
+    2,
+    4,
+    8,
+    10
+   ],
+   "params": 1738,
+   "float32_bytes": 7048,
+   "macs": 29872,
+   "accuracy": 0.9441,
+   "us_per_image": 68.33,
+   "bytes": 7048
+  },
+  {
+   "run": "prune75-2step",
+   "ratio": 0.75,
+   "steps": 2,
+   "mode": "float32",
+   "oneshot_accuracy": 0.3426,
+   "widths": [
+    2,
+    4,
+    8,
+    10
+   ],
+   "params": 1738,
+   "float32_bytes": 7048,
+   "macs": 29872,
+   "accuracy": 0.932,
+   "us_per_image": 66.41,
+   "bytes": 7048
+  },
+  {
+   "run": "prune90",
+   "ratio": 0.9,
+   "steps": 1,
+   "mode": "float32",
+   "oneshot_accuracy": 0.1178,
+   "widths": [
+    1,
+    2,
+    3,
+    10
+   ],
+   "params": 351,
+   "float32_bytes": 1468,
+   "macs": 10908,
+   "accuracy": 0.6803,
+   "us_per_image": 36.45,
+   "bytes": 1468
+  },
+  {
+   "run": "prune90-2step",
+   "ratio": 0.9,
+   "steps": 2,
+   "mode": "float32",
+   "oneshot_accuracy": 0.1178,
+   "widths": [
+    1,
+    2,
+    3,
+    10
+   ],
+   "params": 351,
+   "float32_bytes": 1468,
+   "macs": 10908,
+   "accuracy": 0.5076,
+   "us_per_image": 33.1,
+   "bytes": 1468
+  },
+  {
+   "run": "prune50+int8",
+   "ratio": 0.5,
+   "steps": 1,
+   "mode": "int8",
+   "oneshot_accuracy": 0.7386,
+   "widths": [
+    4,
+    8,
+    16,
+    10
+   ],
+   "params": 6756,
+   "float32_bytes": 27176,
+   "macs": 91104,
+   "accuracy": 0.9789,
+   "us_per_image": 2038.45,
+   "bytes": 6940,
+   "us_per_image_ram": 124.38
+  },
+  {
+   "run": "prune50+uint4",
+   "ratio": 0.5,
+   "steps": 1,
+   "mode": "uint4",
+   "oneshot_accuracy": 0.7386,
+   "widths": [
+    4,
+    8,
+    16,
+    10
+   ],
+   "params": 6756,
+   "float32_bytes": 27176,
+   "macs": 91104,
+   "accuracy": 0.9769,
+   "us_per_image": 2155.91,
+   "bytes": 3562,
+   "us_per_image_ram": 128.62
+  },
+  {
+   "run": "prune75+uint4",
+   "ratio": 0.75,
+   "steps": 1,
+   "mode": "uint4",
+   "oneshot_accuracy": 0.3426,
+   "widths": [
+    2,
+    4,
+    8,
+    10
+   ],
+   "params": 1738,
+   "float32_bytes": 7048,
+   "macs": 29872,
+   "accuracy": 0.9442,
+   "us_per_image": 750.24,
+   "bytes": 997,
+   "us_per_image_ram": 62.42
+  },
+  {
+   "run": "prune50+hough2",
+   "ratio": 0.5,
+   "steps": 1,
+   "mode": "hough2",
+   "oneshot_accuracy": 0.7386,
+   "widths": [
+    4,
+    8,
+    16,
+    10
+   ],
+   "params": 6756,
+   "float32_bytes": 27176,
+   "macs": 91104,
+   "accuracy": 0.9654,
+   "us_per_image": 2180.93,
+   "bytes": 1933,
+   "us_per_image_ram": 129.21
+  },
+  {
+   "run": "prune50+int8-full",
+   "ratio": 0.5,
+   "steps": 1,
+   "mode": "int8-full",
+   "oneshot_accuracy": 0.7386,
+   "widths": [
+    4,
+    8,
+    16,
+    10
+   ],
+   "params": 6756,
+   "float32_bytes": 27176,
+   "macs": 91104,
+   "accuracy": 0.9788,
+   "us_per_image": 200.49,
+   "bytes": 7092
+  },
+  {
+   "run": "narrow50",
+   "ratio": 0.5,
+   "steps": 0,
+   "mode": "float32",
+   "oneshot_accuracy": null,
+   "widths": [
+    4,
+    8,
+    16,
+    10
+   ],
+   "params": 6756,
+   "float32_bytes": 27176,
+   "macs": 91104,
+   "accuracy": 0.977,
+   "us_per_image": 138.6,
+   "bytes": 27176
+  },
+  {
+   "run": "narrow75",
+   "ratio": 0.75,
+   "steps": 0,
+   "mode": "float32",
+   "oneshot_accuracy": null,
+   "widths": [
+    2,
+    4,
+    8,
+    10
+   ],
+   "params": 1738,
+   "float32_bytes": 7048,
+   "macs": 29872,
+   "accuracy": 0.9496,
+   "us_per_image": 64.29,
+   "bytes": 7048
+  }
+ ]
+}
