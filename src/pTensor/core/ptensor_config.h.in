@@ -11,6 +11,10 @@
  * off keeps only the reference loops (smaller code, much slower). */
 #cmakedefine01 PTENSOR_WITH_FAST_KERNELS
 
+/* 1 if the fused operators (ops/fused/) and batch-norm folding helpers
+ * (util/fusion.hpp) are available. */
+#cmakedefine01 PTENSOR_WITH_FUSION
+
 /* 1 if HoughRomTensor (Hough line-codebook weight storage) is built in. */
 #cmakedefine01 PTENSOR_WITH_HOUGH
 

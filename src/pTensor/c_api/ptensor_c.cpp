@@ -27,6 +27,12 @@
 #include "pTensor/util/polyquant.hpp"
 #include "pTensor/tensors/RomTensor.hpp"
 #include "pTensor/util/packing.hpp"
+#if PTENSOR_WITH_FUSION
+#include "pTensor/ops/fused/FusedOperators.hpp"
+#if PTENSOR_WITH_QUANTIZED_OPS
+#include "pTensor/ops/fused/QuantizedAddOperator.hpp"
+#endif
+#endif
 #if PTENSOR_WITH_QUANTIZED_OPS
 #include "pTensor/ops/tflm/DequantizeOperator.hpp"
 #include "pTensor/ops/tflm/QuantizeOperator.hpp"
@@ -1008,6 +1014,235 @@ int ptensor_poly_build_lut(uint32_t, uint32_t, const float*, float*) {
 }
 int ptensor_decode_poly_f32(uint32_t, uint32_t, const float*, const float*,
                             const void*, uint32_t, float*) {
+  return invalid();
+}
+#endif
+
+}  // extern "C"
+
+// ---- fused operators ------------------------------------------------------
+
+namespace {
+// NumPy broadcast of two shapes (right aligned) into `so`.
+bool broadcast_shape(const uint32_t* a_shape, uint32_t a_rank,
+                     const uint32_t* b_shape, uint32_t b_rank,
+                     TensorShape& sa, TensorShape& sb, TensorShape& so) {
+  if (!make_shape(a_shape, a_rank, sa) || !make_shape(b_shape, b_rank, sb))
+    return false;
+  const uint32_t rank = a_rank > b_rank ? a_rank : b_rank;
+  uint32_t od[4];
+  for (uint32_t i = 0; i < rank; ++i) {
+    const int32_t ia = static_cast<int32_t>(i) - static_cast<int32_t>(rank - a_rank);
+    const int32_t ib = static_cast<int32_t>(i) - static_cast<int32_t>(rank - b_rank);
+    const uint32_t da = ia >= 0 ? a_shape[ia] : 1;
+    const uint32_t db = ib >= 0 ? b_shape[ib] : 1;
+    if (da != db && da != 1 && db != 1) return false;
+    od[i] = da > db ? da : db;
+  }
+  return make_shape(od, rank, so);
+}
+
+bool valid_clamp(float lo, float hi) { return !(lo > hi) && lo == lo && hi == hi; }
+
+// Inputs x, w and the optional per-channel bias / scale (null when absent).
+template <typename Op>
+void set_layer_inputs(Op& op, uint8_t nx, Tensor& x, uint8_t nw, Tensor& w,
+                      uint8_t nb, Tensor* b, uint8_t ns, Tensor* sc) {
+  if (b && sc)
+    op.set_inputs({{nx, x}, {nw, w}, {nb, *b}, {ns, *sc}});
+  else if (b)
+    op.set_inputs({{nx, x}, {nw, w}, {nb, *b}});
+  else if (sc)
+    op.set_inputs({{nx, x}, {nw, w}, {ns, *sc}});
+  else
+    op.set_inputs({{nx, x}, {nw, w}});
+}
+}  // namespace
+
+extern "C" {
+
+#if PTENSOR_WITH_FUSION
+int ptensor_has_fusion(void) { return 1; }
+
+int ptensor_fused_conv2d_f32(const float* in, uint32_t n, uint32_t h,
+                             uint32_t w, uint32_t c, const float* filter,
+                             uint32_t out_c, uint32_t kh, uint32_t kw,
+                             const float* bias, const float* scale,
+                             uint32_t stride_h, uint32_t stride_w, int padding,
+                             uint32_t dilation_h, uint32_t dilation_w,
+                             float act_lo, float act_hi, float* out) {
+  if (!in || !filter || !out || !fits_dim(n) || !fits_dim(h) || !fits_dim(w) ||
+      !fits_dim(c) || !fits_dim(out_c) || !fits_dim(kh) || !fits_dim(kw) ||
+      !fits_dim(stride_h) || !fits_dim(stride_w) || !fits_dim(dilation_h) ||
+      !fits_dim(dilation_w) || !valid_padding(padding) ||
+      !valid_clamp(act_lo, act_hi))
+    return invalid();
+  const uint32_t ekh = (kh - 1) * dilation_h + 1, ekw = (kw - 1) * dilation_w + 1;
+  const uint32_t oh = ptensor_conv_output_size(h, ekh, stride_h, padding);
+  const uint32_t ow = ptensor_conv_output_size(w, ekw, stride_w, padding);
+  if (!oh || !ow) return invalid();
+  Session s;
+  {
+    typedef FusedConv2dOperator<float> Op;
+    Tensor ti = new RomTensor({(uint16_t)n, (uint16_t)h, (uint16_t)w, (uint16_t)c}, flt, in);
+    Tensor tf = new RomTensor({(uint16_t)out_c, (uint16_t)kh, (uint16_t)kw, (uint16_t)c}, flt, filter);
+    Tensor to = new BufferTensor({(uint16_t)n, (uint16_t)oh, (uint16_t)ow, (uint16_t)out_c}, flt, out);
+    Tensor tb, ts;
+    Op op((uint16_t)stride_h, (uint16_t)stride_w, static_cast<Padding>(padding),
+          FusedActivation(act_lo, act_hi), (uint16_t)dilation_h, (uint16_t)dilation_w);
+    if (bias) tb = new RomTensor({(uint16_t)out_c}, flt, bias);
+    if (scale) ts = new RomTensor({(uint16_t)out_c}, flt, scale);
+    set_layer_inputs(op, Op::in, ti, Op::filter, tf, Op::bias,
+                     bias ? &tb : nullptr, Op::scale, scale ? &ts : nullptr);
+    op.set_outputs({{Op::out, to}}).eval();
+  }
+  return s.status();
+}
+
+int ptensor_fused_depthwise_conv2d_f32(
+    const float* in, uint32_t n, uint32_t h, uint32_t w, uint32_t c,
+    const float* filter, uint32_t kh, uint32_t kw, uint32_t multiplier,
+    const float* bias, const float* scale, uint32_t stride_h,
+    uint32_t stride_w, int padding, uint32_t dilation_h, uint32_t dilation_w,
+    float act_lo, float act_hi, float* out) {
+  if (!in || !filter || !out || !fits_dim(n) || !fits_dim(h) || !fits_dim(w) ||
+      !fits_dim(c) || !fits_dim(kh) || !fits_dim(kw) || !fits_dim(multiplier) ||
+      !fits_dim(c * multiplier) || !fits_dim(stride_h) || !fits_dim(stride_w) ||
+      !fits_dim(dilation_h) || !fits_dim(dilation_w) || !valid_padding(padding) ||
+      !valid_clamp(act_lo, act_hi))
+    return invalid();
+  const uint32_t ekh = (kh - 1) * dilation_h + 1, ekw = (kw - 1) * dilation_w + 1;
+  const uint32_t oh = ptensor_conv_output_size(h, ekh, stride_h, padding);
+  const uint32_t ow = ptensor_conv_output_size(w, ekw, stride_w, padding);
+  if (!oh || !ow) return invalid();
+  const uint16_t oc = static_cast<uint16_t>(c * multiplier);
+  Session s;
+  {
+    typedef FusedDepthwiseConv2dOperator<float> Op;
+    Tensor ti = new RomTensor({(uint16_t)n, (uint16_t)h, (uint16_t)w, (uint16_t)c}, flt, in);
+    Tensor tf = new RomTensor({1, (uint16_t)kh, (uint16_t)kw, oc}, flt, filter);
+    Tensor to = new BufferTensor({(uint16_t)n, (uint16_t)oh, (uint16_t)ow, oc}, flt, out);
+    Tensor tb, ts;
+    Op op((uint16_t)stride_h, (uint16_t)stride_w, static_cast<Padding>(padding),
+          FusedActivation(act_lo, act_hi), (uint16_t)multiplier,
+          (uint16_t)dilation_h, (uint16_t)dilation_w);
+    if (bias) tb = new RomTensor({oc}, flt, bias);
+    if (scale) ts = new RomTensor({oc}, flt, scale);
+    set_layer_inputs(op, Op::in, ti, Op::filter, tf, Op::bias,
+                     bias ? &tb : nullptr, Op::scale, scale ? &ts : nullptr);
+    op.set_outputs({{Op::out, to}}).eval();
+  }
+  return s.status();
+}
+
+int ptensor_fused_fully_connected_f32(const float* in, const float* weights,
+                                      const float* bias, const float* scale,
+                                      float* out, uint32_t batch,
+                                      uint32_t in_features,
+                                      uint32_t out_features, float act_lo,
+                                      float act_hi) {
+  if (!in || !weights || !out || !fits_dim(batch) || !fits_dim(in_features) ||
+      !fits_dim(out_features) || !valid_clamp(act_lo, act_hi))
+    return invalid();
+  Session s;
+  {
+    typedef FusedFullyConnectedOperator<float> Op;
+    Tensor ti = new RomTensor({(uint16_t)batch, (uint16_t)in_features}, flt, in);
+    Tensor tw = new RomTensor({(uint16_t)in_features, (uint16_t)out_features}, flt, weights);
+    Tensor to = new BufferTensor({(uint16_t)batch, (uint16_t)out_features}, flt, out);
+    Tensor tb, ts;
+    Op op(FusedActivation(act_lo, act_hi));
+    if (bias) tb = new RomTensor({(uint16_t)out_features}, flt, bias);
+    if (scale) ts = new RomTensor({(uint16_t)out_features}, flt, scale);
+    set_layer_inputs(op, Op::input, ti, Op::filter, tw, Op::bias,
+                     bias ? &tb : nullptr, Op::scale, scale ? &ts : nullptr);
+    op.set_outputs({{Op::output, to}}).eval();
+  }
+  return s.status();
+}
+
+int ptensor_fused_add_f32(const float* a, const uint32_t* a_shape,
+                          uint32_t a_rank, const float* b,
+                          const uint32_t* b_shape, uint32_t b_rank,
+                          float act_lo, float act_hi, float* out) {
+  TensorShape sa(1), sb(1), so(1);
+  if (!a || !b || !out || !valid_clamp(act_lo, act_hi) ||
+      !broadcast_shape(a_shape, a_rank, b_shape, b_rank, sa, sb, so))
+    return invalid();
+  Session s;
+  {
+    typedef FusedAddOperator<float> Op;
+    Tensor ta = new RomTensor(sa, flt, a);
+    Tensor tb = new RomTensor(sb, flt, b);
+    Tensor tc = new BufferTensor(so, flt, out);
+    Op op(FusedActivation(act_lo, act_hi));
+    op.set_inputs({{Op::a, ta}, {Op::b, tb}}).set_outputs({{Op::c, tc}}).eval();
+  }
+  return s.status();
+}
+
+#if PTENSOR_WITH_QUANTIZED_OPS
+int ptensor_add_i8(const int8_t* a, const uint32_t* a_shape, uint32_t a_rank,
+                   float a_scale, int32_t a_zp, const int8_t* b,
+                   const uint32_t* b_shape, uint32_t b_rank, float b_scale,
+                   int32_t b_zp, int8_t* out, float out_scale, int32_t out_zp,
+                   int activation) {
+  TensorShape sa(1), sb(1), so(1);
+  if (!a || !b || !out || !valid_activation(activation) || !(a_scale > 0) ||
+      !(b_scale > 0) || !(out_scale > 0) ||
+      !broadcast_shape(a_shape, a_rank, b_shape, b_rank, sa, sb, so))
+    return invalid();
+  Session s;
+  {
+    typedef TflmSymQuantOps::QuantizedAddOperator<int8_t> Op;
+    Tensor ta = new RomTensor(sa, i8, a);
+    Tensor tb = new RomTensor(sb, i8, b);
+    Tensor tc = new BufferTensor(so, i8, out);
+    ta->set_quantization_params(PerTensorQuantizationParams(a_zp, a_scale));
+    tb->set_quantization_params(PerTensorQuantizationParams(b_zp, b_scale));
+    tc->set_quantization_params(PerTensorQuantizationParams(out_zp, out_scale));
+    Op op(static_cast<TFLM::TfLiteFusedActivation>(activation));
+    op.set_inputs({{Op::a, ta}, {Op::b, tb}}).set_outputs({{Op::c, tc}}).eval();
+  }
+  return s.status();
+}
+#else
+int ptensor_add_i8(const int8_t*, const uint32_t*, uint32_t, float, int32_t,
+                   const int8_t*, const uint32_t*, uint32_t, float, int32_t,
+                   int8_t*, float, int32_t, int) {
+  return invalid();
+}
+#endif
+#else
+int ptensor_has_fusion(void) { return 0; }
+int ptensor_fused_conv2d_f32(const float*, uint32_t, uint32_t, uint32_t,
+                             uint32_t, const float*, uint32_t, uint32_t,
+                             uint32_t, const float*, const float*, uint32_t,
+                             uint32_t, int, uint32_t, uint32_t, float, float,
+                             float*) {
+  return invalid();
+}
+int ptensor_fused_depthwise_conv2d_f32(const float*, uint32_t, uint32_t,
+                                       uint32_t, uint32_t, const float*,
+                                       uint32_t, uint32_t, uint32_t,
+                                       const float*, const float*, uint32_t,
+                                       uint32_t, int, uint32_t, uint32_t,
+                                       float, float, float*) {
+  return invalid();
+}
+int ptensor_fused_fully_connected_f32(const float*, const float*, const float*,
+                                      const float*, float*, uint32_t, uint32_t,
+                                      uint32_t, float, float) {
+  return invalid();
+}
+int ptensor_fused_add_f32(const float*, const uint32_t*, uint32_t,
+                          const float*, const uint32_t*, uint32_t, float, float,
+                          float*) {
+  return invalid();
+}
+int ptensor_add_i8(const int8_t*, const uint32_t*, uint32_t, float, int32_t,
+                   const int8_t*, const uint32_t*, uint32_t, float, int32_t,
+                   int8_t*, float, int32_t, int) {
   return invalid();
 }
 #endif

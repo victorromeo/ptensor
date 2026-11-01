@@ -119,3 +119,12 @@ jobs:
             ./build/examples/bench/ptensor_bench
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Fusion benchmark
+        run: |
+          cmake --build build -j"$(nproc)" --target ptensor_fusion_bench
+          {
+            echo '### Fused vs unfused operators (best of N, x86-64 runner)'
+            echo '```'
+            ./build/examples/bench/ptensor_fusion_bench
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

@@ -1,2 +1,6 @@
 add_executable(ptensor_bench bench.cpp)
 target_link_libraries(ptensor_bench ptensor)
+if(PTENSOR_WITH_FUSION)
+  add_executable(ptensor_fusion_bench fusion_bench.cpp)
+  target_link_libraries(ptensor_fusion_bench ptensor)
+endif()
