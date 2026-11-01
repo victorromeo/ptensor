@@ -26,6 +26,7 @@ Useful CMake options:
 | `PTENSOR_WITH_SIMPLE_ERROR_HANDLER` | `ON` | Build `SimpleErrorHandler` (uses `std::deque`/`std::function`) |
 | `PTENSOR_BARE_METAL` | `ON` for `Generic` targets | Never call `exit()`; halt instead |
 | `PTENSOR_WITH_HOUGH` | `ON` | Build `HoughRomTensor` (Hough line-codebook weight compression) |
+| `PTENSOR_WITH_POLY_QUANT` | `ON` | Build `PolyRomTensor` (quadratic / cubic quantisation through a lookup table) |
 | `PTENSOR_MNIST_RUNNER` | `OFF` | Build the MNIST quantisation-mode runner (`examples/mnist_modes`) |
 | `PTENSOR_SIZE_PROBE` | `OFF` | Build a minimal app used to measure footprint |
 | `PTENSOR_BENCH` | `OFF` | Build the host kernel benchmark |
@@ -146,6 +147,20 @@ level after QAT, so `uint` remains the better choice there. It is a separate ten
 and operators are unchanged (the Cortex-M4 size probe is byte-identical; the
 class is 772 bytes of flash when used). Design, format and measurements:
 [docs/hough_quantisation.md](docs/hough_quantisation.md).
+
+### Quadratic and cubic quantisation
+
+`PolyRomTensor` (`-DPTENSOR_WITH_POLY_QUANT=ON`, the default) stores
+`bits`-bit codes whose levels follow a quadratic or cubic polynomial fitted per
+tensor, so they can be dense near zero and sparse in the tails. The device
+decodes through a `4 · 2^bits` byte lookup table (in flash, or built in RAM from
+the coefficients with `polyquant::build_lut`), so decoding costs the same as
+linear. On MNIST after QAT, 2-bit quadratic and cubic average 97.9% against
+97.2% for 2-bit linear (3 seeds) for about 1% more bytes; from 3 to 16 bits they
+tie with linear, and at 6–8 bits the tables cost more than they return. Without
+retraining the curve matters more: 2-bit post-training quantisation gives
+96.0% cubic vs 77.6% linear. Design and results:
+[docs/poly_quantisation.md](docs/poly_quantisation.md).
 
 ### Quantisation-aware training and every mode on MNIST
 

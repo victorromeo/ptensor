@@ -7,6 +7,7 @@ Every pTensor weight storage mode is a `WeightFormat` here:
     UniformFormat(bits)         PackedRomTensor UINT_BITS (1..16 bits, affine)
     UniformFormat(8, "int8")    PackedRomTensor INT8 (also "int16")
     HoughFormat(lb, tb)         HoughRomTensor (Hough line codebook)
+    PolyFormat(degree, bits)    PolyRomTensor (quadratic / cubic levels via a LUT)
 
 A format turns a float array into an `Encoded` tensor (what goes in flash) and
 can fake-quantise an array (encode, then decode exactly as the device will),
@@ -28,6 +29,7 @@ backward with the quantised weights, then applies the gradient to the float
 import numpy as np
 
 from .hough import HoughQuantizer, estimate_bytes as _hough_bytes, _fit_uniform
+from .polyquant import PolyQuantizer, estimate_bytes as _poly_bytes
 
 # PackedFormat ids (must match pTensor::PackedFormat / ptensor_packed_format).
 UINT_BITS, INT8, UINT8, INT16, UINT16, INT32, FLOAT16, FLOAT32, FLOAT64 = range(9)
@@ -125,6 +127,30 @@ class HoughEncoded(Encoded):
     def describe(self):
         c = self.code
         return "hough L=%d t=%d stride=%d" % (1 << c.line_bits, 1 << c.t_bits, c.stride)
+
+
+class PolyEncoded(Encoded):
+    kind = "poly"
+
+    def __init__(self, code):
+        Encoded.__init__(self, code.shape)
+        self.code = code
+
+    @property
+    def nbytes(self):
+        return self.code.nbytes
+
+    @property
+    def lut_bytes(self):
+        return self.code.lut_bytes
+
+    def decode(self):
+        return self.code.decode()
+
+    def describe(self):
+        c = self.code
+        name = {1: "linear", 2: "quadratic", 3: "cubic"}[c.degree]
+        return "%s %d-bit %s" % (name, c.bits, "LUT" if c.use_lut else "no LUT")
 
 
 def _pack_bits(codes, bits):
@@ -274,6 +300,47 @@ class HoughFormat(WeightFormat):
         return _hough_bytes(int(np.prod(shape)), self.line_bits, self.t_bits)
 
 
+class _PolyTensor(object):
+    # The levels move while they are refitted every step, which makes the
+    # last steps noisy; QATModel.fit freezes them for the final epoch and
+    # the export keeps the levels the weights were trained against.
+    freeze_last_epoch = True
+
+    def __init__(self, fmt):
+        self.q = PolyQuantizer(fmt.degree, fmt.bits, fmt.use_lut, iters=fmt.iters)
+        self.trained = False
+
+    def fake(self, w, refit=True):
+        self.trained = True
+        return self.q.encode(w, refit_iters=1 if refit else 0).decode()
+
+    def encode(self, w):
+        return PolyEncoded(self.q.encode(w, refit_iters=0 if self.trained else None))
+
+
+class PolyFormat(WeightFormat):
+    """Polynomial quantisation: `bits`-bit codes whose levels follow a degree
+    2 (quadratic) or 3 (cubic) polynomial fitted per tensor, decoded through
+    a 2^bits-entry float lookup table (stored for bits <= 8; 16-bit codes
+    evaluate the polynomial instead). See ptensor.polyquant."""
+
+    def __init__(self, degree, bits, use_lut=None, iters=20):
+        self.degree = int(degree)
+        self.bits = int(bits)
+        self.use_lut = use_lut
+        self.iters = iters
+        self.name = "%s%d" % ({1: "linear", 2: "quad", 3: "cubic"}[self.degree], self.bits)
+
+    def quantizer(self, shape, view_shape=None):
+        return _PolyTensor(self)
+
+    def estimate_bytes(self, shape):
+        return _poly_bytes(int(np.prod(shape)), self.degree, self.bits, self.use_lut)
+
+
+# Same code widths as the linear integer modes: int16, int8, uint7 .. uint2.
+POLY_BITS = (16, 8, 7, 6, 5, 4, 3, 2)
+
 MODES = {
     "float64": lambda: FloatFormat("f64"),
     "float32": lambda: FloatFormat("f32"),
@@ -290,6 +357,9 @@ MODES = {
     "hough3": lambda: HoughFormat(4, 2),
     "hough2": lambda: HoughFormat(2, 2),
 }
+for _b in POLY_BITS:
+    MODES["quad%d" % _b] = (lambda b: lambda: PolyFormat(2, b))(_b)
+    MODES["cubic%d" % _b] = (lambda b: lambda: PolyFormat(3, b))(_b)
 
 
 def get_format(name):
@@ -392,12 +462,17 @@ class QATModel(object):
         n = len(x)
         self.log("[3/4] quantisation-aware training: %d epoch(s), %d steps each"
                  % (epochs, (n + batch_size - 1) // batch_size))
+        freeze = epochs > 1 and any(getattr(q, "freeze_last_epoch", False)
+                                    for _, _, _, q, _ in self.entries)
         for ep in range(epochs):
             order = rng.permutation(n)
             total, steps = 0.0, 0
+            refit = not (freeze and ep == epochs - 1)
+            if not refit:
+                self.log("      (quantisation levels frozen for the last epoch)")
             for s in range(0, n, batch_size):
                 idx = order[s:s + batch_size]
-                saved = self._swap_in(self.quantized_weights(refit=True))
+                saved = self._swap_in(self.quantized_weights(refit=refit))
                 l, g = grads_of(x[idx], y[idx])
                 self._swap_in(saved)  # straight-through: update the float weights
                 opt.apply_gradients(zip(g, variables))

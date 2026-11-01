@@ -14,4 +14,7 @@
 /* 1 if HoughRomTensor (Hough line-codebook weight storage) is built in. */
 #cmakedefine01 PTENSOR_WITH_HOUGH
 
+/* 1 if PolyRomTensor (quadratic / cubic polynomial quantisation) is built in. */
+#cmakedefine01 PTENSOR_WITH_POLY_QUANT
+
 #endif

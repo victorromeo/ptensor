@@ -58,8 +58,9 @@ from .packing import (
     packed_size,
 )
 
-from . import hough, ptm, qat  # noqa: E402  (NumPy only; QAT imports TensorFlow lazily)
+from . import hough, polyquant, ptm, qat  # noqa: E402  (NumPy only; QAT imports TensorFlow lazily)
 from .hough import HoughCode, hough_quantize
+from .polyquant import PolyCode, poly_quantize
 from .qat import QATModel, get_format
 
 __version__ = _lib.ptensor_version().decode()
@@ -70,7 +71,8 @@ __all__ = [
     "maxpool2d", "quantize", "relu", "relu6", "sigmoid", "softmax", "tanh",
     "PackedFormat", "decode_packed", "float_to_half", "half_to_float",
     "pack_bits", "packed_size",
-    "hough", "qat", "ptm", "HoughCode", "hough_quantize", "QATModel", "get_format",
+    "hough", "qat", "ptm", "HoughCode", "hough_quantize",
+    "polyquant", "PolyCode", "poly_quantize", "QATModel", "get_format",
     "UNARY_OPS",
     "conv2d_int8",
     "maxpool2d_int8",

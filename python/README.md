@@ -55,10 +55,13 @@ Available:
 - Hough compression: `hough_quantize(w, line_bits, t_bits)` returns a
   `HoughCode` (`.stream()`, `.lines`, `.nbytes`, `.decode()`,
   `.decode_on_device()`); see `ptensor.hough`
+- Quadratic / cubic quantisation: `poly_quantize(w, degree, bits)` returns a
+  `PolyCode` (`.stream()`, `.coeffs`, `.lut()`, `.nbytes`, `.decode()`,
+  `.decode_on_device()`); see `ptensor.polyquant`
 - Quantisation-aware training (needs TensorFlow): `QATModel(model, mode)` with
   `report_current()`, `report_estimate()`, `fit()`, `report_final()`,
   `export()`; modes in `ptensor.qat.MODES` (float64/32/16, int16, int8,
-  uint2..uint7, hough2/3/4). `ptensor.ptm` writes the result as a `.ptm` model.
+  uint2..uint7, hough2/3/4, quad2..quad8/quad16, cubic2..cubic8/cubic16). `ptensor.ptm` writes the result as a `.ptm` model.
 
 ## MNIST example
 

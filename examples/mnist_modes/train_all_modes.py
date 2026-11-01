@@ -34,6 +34,11 @@ from ptensor import qat, ptm  # noqa: E402
 FLOAT_MODES = ["float64", "float32", "float16", "int16", "int8",
                "uint7", "uint6", "uint5", "uint4", "uint3", "uint2",
                "hough4", "hough3", "hough2"]
+# Quadratic and cubic polynomial quantisation at the same code widths as the
+# integer modes above (int16, int8, uint7 .. uint2).
+POLY_MODES = ["%s%d" % (p, b) for p in ("quad", "cubic") for b in qat.POLY_BITS]
+ALL_MODES = FLOAT_MODES + POLY_MODES + ["int8-full"]
+LINEAR_OF = {16: "int16", 8: "int8"}
 
 # The first dense layer sees a flattened 7x7x16 map; let the Hough encoder
 # also try pairing spatial neighbours by giving it the unflattened view.
@@ -75,7 +80,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--epochs", type=int, default=3, help="float pre-training epochs")
     ap.add_argument("--qat-epochs", type=int, default=2, help="QAT fine-tuning epochs per mode")
-    ap.add_argument("--modes", default=",".join(FLOAT_MODES + ["int8-full"]))
+    ap.add_argument("--modes", default=",".join(ALL_MODES))
     ap.add_argument("--runner", default=os.path.join(REPO, "build", "examples", "mnist_modes", "mnist_modes"))
     ap.add_argument("--out-dir", default=os.path.join(HERE, "out"))
     ap.add_argument("--limit", type=int, default=None, help="test images for the C++ runs")
@@ -141,6 +146,7 @@ def main():
             print("      before training (post-training quantisation): %.2f%%" % (100 * row["ptq_accuracy"]))
             q.fit(xf_train, y_train, epochs=args.qat_epochs, seed=args.seed)
             acc, size = q.report_final(xf_test, y_test)
+            row["lut_bytes"] = sum(getattr(e, "lut_bytes", 0) for _, e, _ in q.export())
             row.update(keras_accuracy=acc, bytes=size,
                        storage=", ".join("%s: %s" % (l.name, e.describe()) for l, e, _ in q.export()))
             ptm.write_float_model(path, model, q.export())
@@ -149,7 +155,7 @@ def main():
         row["accuracy"] = stream["accuracy"]
         row["us_per_image"] = stream["us_per_image"]
         row["runner_weight_bytes"] = stream["weight_bytes"]
-        if mode not in ("float32", "int8-full"):
+        if mode not in ("float32", "int8-full") and not args.seed:
             ram = run_runner(args.runner, path, test_path, ram=True, limit=args.limit)
             row["us_per_image_ram"] = ram["us_per_image"]
             assert abs(ram["accuracy"] - stream["accuracy"]) < 1e-9, "decode-to-RAM changed results"
@@ -158,11 +164,19 @@ def main():
         results.append(row)
 
     if args.seed:
-        with open(os.path.join(HERE, "results_seed%d.json" % args.seed), "w") as f:
-            json.dump({"seed": args.seed, "results": results}, f, indent=1)
+        # Merge into the earlier runs with this seed (other modes stay).
+        seed_path = os.path.join(HERE, "results_seed%d.json" % args.seed)
+        old = []
+        if os.path.exists(seed_path):
+            with open(seed_path) as f:
+                old = json.load(f)["results"]
+        merged = {r["mode"]: r for r in old}
+        merged.update({r["mode"]: r for r in results})
+        with open(seed_path, "w") as f:
+            json.dump({"seed": args.seed, "results": list(merged.values())}, f, indent=1)
         return
     # Running a subset of modes updates just those rows of the previous run.
-    order = FLOAT_MODES + ["int8-full"]
+    order = ALL_MODES
     merged = {r["mode"]: r for r in _load_results()}
     merged.update({r["mode"]: r for r in results})
     results = sorted(merged.values(), key=lambda r: order.index(r["mode"]) if r["mode"] in order else 99)
@@ -229,6 +243,7 @@ def write_markdown(path, base_acc, results):
         "to RAM at start-up restores the dense fast paths (same speed as float32) at the cost of",
         "107 KB of RAM for these weights. Both give identical predictions.",
     ]
+    lines += _poly_section(results)
     seeds = _seed_rows(results)
     if seeds:
         lines += ["", "## Repeat runs", "",
@@ -244,6 +259,36 @@ def write_markdown(path, base_acc, results):
         lines.append("- **%s**: %s" % (r["mode"], r["storage"]))
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
+
+
+def _poly_section(results):
+    by = {r["mode"]: r for r in results}
+    if not any(m in by for m in POLY_MODES):
+        return []
+    out = ["", "## Linear vs quadratic vs cubic", "",
+           "Same code width, same QAT budget. Size is everything stored in flash (codes,",
+           "per-tensor parameters, biases and, for quadratic/cubic, the lookup tables);",
+           "\"LUT\" is the part of that taken by the tables (4 bytes x 2^bits per tensor; 16-bit",
+           "codes evaluate the polynomial instead of storing a 256 KB table). Building the tables",
+           "in RAM at start-up from the coefficients moves those bytes from flash to RAM.", "",
+           "| Code width | Linear | Size | Accuracy | Quadratic size (LUT) | Accuracy | Cubic size (LUT) | Accuracy |",
+           "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"]
+
+    def cell(m):
+        r = by.get(m)
+        if r is None:
+            return "–", "–"
+        lut = r.get("lut_bytes", 0)
+        size = "%d B" % r["runner_weight_bytes"] + (" (%d B)" % lut if lut else "")
+        return size, "%.2f%%" % (100 * r["accuracy"])
+
+    for b in qat.POLY_BITS:
+        lin = LINEAR_OF.get(b, "uint%d" % b)
+        ls, la = cell(lin)
+        qs, qa = cell("quad%d" % b)
+        cs, ca = cell("cubic%d" % b)
+        out.append("| %d bits | %s | %s | %s | %s | %s | %s | %s |" % (b, lin, ls, la, qs, qa, cs, ca))
+    return out
 
 
 def _seed_rows(results):
@@ -267,6 +312,10 @@ def _short_storage(r):
     m = r["mode"]
     if m == "int8-full":
         return "int8 (per-channel), int8 activations"
+    if m.startswith("quad") or m.startswith("cubic"):
+        bits = int(m.lstrip("quadcubic"))
+        return "PolyRomTensor %s %d-bit%s" % ("quadratic" if m.startswith("quad") else "cubic",
+                                              bits, " + LUT" if bits <= 8 else "")
     if m.startswith("hough"):
         return "HoughRomTensor + uint fallback"
     if m == "float32":

@@ -63,6 +63,10 @@
 #include "pTensor/tensors/RomTensor.hpp"
 #include "pTensor/tensors/PackedRomTensor.hpp"
 #include "pTensor/util/packing.hpp"
+#if PTENSOR_WITH_POLY_QUANT
+#include "pTensor/tensors/PolyRomTensor.hpp"
+#include "pTensor/util/polyquant.hpp"
+#endif
 #if PTENSOR_WITH_HOUGH
 #include "pTensor/tensors/HoughRomTensor.hpp"
 #include "pTensor/util/hough.hpp"

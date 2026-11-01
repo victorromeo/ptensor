@@ -4,8 +4,8 @@
 //   mnist_modes model.ptm test.bin [--ram] [--limit N]
 //
 // Weights stay in the storage mode the file chose: float32 weights become
-// RomTensors, packed weights PackedRomTensors and Hough weights
-// HoughRomTensors, decoded on the fly as operators read them (as on a
+// RomTensors, packed weights PackedRomTensors, Hough weights HoughRomTensors
+// and polynomial (quadratic/cubic) weights PolyRomTensors, decoded on the fly as operators read them (as on a
 // microcontroller running from flash). --ram decodes packed and Hough weights
 // to float32 once at load instead, which trades RAM for the dense fast paths.
 //
@@ -50,7 +50,7 @@ struct Reader {
   }
 };
 
-enum Storage { ST_F32 = 0, ST_PACKED = 1, ST_HOUGH = 2, ST_I8 = 3, ST_I32 = 4 };
+enum Storage { ST_F32 = 0, ST_PACKED = 1, ST_HOUGH = 2, ST_I8 = 3, ST_I32 = 4, ST_POLY = 5 };
 
 struct TensorRec {
   uint8_t storage = 0;
@@ -63,6 +63,10 @@ struct TensorRec {
   uint8_t line_bits = 0, t_bits = 0;
   uint16_t stride = 1;
   std::vector<float> lines;
+  // poly
+  uint8_t degree = 0;
+  float coeffs[4] = {0, 0, 0, 0};
+  std::vector<float> lut;  // empty: evaluate the polynomial per read
   uint32_t nbytes = 0;
   std::vector<uint32_t> aligned;  // 4-byte aligned copy of the payload
   const uint8_t* data() const {
@@ -82,6 +86,7 @@ struct TensorRec {
         format != (uint8_t)PackedFormat::Float64)
       extra = 8;  // scale + zero point
     if (storage == ST_HOUGH) extra = lines.size() * 4 + 4;
+    if (storage == ST_POLY) extra = 4 * (degree + 1) + 2 + lut.size() * 4;
     return nbytes + extra;
   }
   TensorShape shape() const {
@@ -100,6 +105,9 @@ struct TensorRec {
   HoughEncoding hough() const {
     return HoughEncoding::make(line_bits, t_bits, stride, lines.data());
   }
+  PolyEncoding poly() const {
+    return PolyEncoding::make(degree, bits, coeffs, lut.empty() ? nullptr : lut.data());
+  }
   void decode_to_ram() {
     if (storage == ST_PACKED) {
       decoded.resize(count());
@@ -110,6 +118,10 @@ struct TensorRec {
       decoded.resize(count());
       hough::decode_all(data(), lines.data(), line_bits, t_bits, stride, count(),
                         decoded.data());
+    } else if (storage == ST_POLY) {
+      decoded.resize(count());
+      PolyRomTensor t(shape(), poly(), data());
+      t.decode_all(decoded.data());
     }
   }
   Tensor make() const {
@@ -119,6 +131,7 @@ struct TensorRec {
       case ST_I8: return new RomTensor(shape(), i8, data());
       case ST_I32: return new RomTensor(shape(), i32, data());
       case ST_PACKED: return new PackedRomTensor(shape(), flt, packed(), data());
+      case ST_POLY: return new PolyRomTensor(shape(), poly(), data());
       default: return new HoughRomTensor(shape(), hough(), data());
     }
   }
@@ -140,6 +153,14 @@ TensorRec read_tensor(Reader& r) {
     t.stride = r.get<uint16_t>();
     t.lines.resize(4u << t.line_bits);
     memcpy(t.lines.data(), r.bytes(t.lines.size() * 4), t.lines.size() * 4);
+  } else if (t.storage == ST_POLY) {
+    t.degree = r.get<uint8_t>();
+    t.bits = r.get<uint8_t>();
+    for (int i = 0; i < 4; ++i) t.coeffs[i] = r.get<float>();
+    if (r.get<uint8_t>()) {
+      t.lut.resize(1u << t.bits);
+      memcpy(t.lut.data(), r.bytes(t.lut.size() * 4), t.lut.size() * 4);
+    }
   }
   t.nbytes = r.get<uint32_t>();
   // The file packs records back to back; float/int32 kernels need aligned data.
