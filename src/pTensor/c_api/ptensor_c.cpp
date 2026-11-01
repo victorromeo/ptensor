@@ -23,6 +23,8 @@
 #include "pTensor/tensors/BufferTensor.hpp"
 #include "pTensor/tensors/PackedRomTensor.hpp"
 #include "pTensor/tensors/HoughRomTensor.hpp"
+#include "pTensor/tensors/PolyRomTensor.hpp"
+#include "pTensor/util/polyquant.hpp"
 #include "pTensor/tensors/RomTensor.hpp"
 #include "pTensor/util/packing.hpp"
 #if PTENSOR_WITH_QUANTIZED_OPS
@@ -960,6 +962,52 @@ size_t ptensor_hough_stream_size(uint32_t, uint32_t, uint32_t, uint32_t) {
 }
 int ptensor_decode_hough_f32(uint32_t, uint32_t, uint32_t, const float*,
                              const void*, uint32_t, float*) {
+  return invalid();
+}
+#endif
+
+#if PTENSOR_WITH_POLY_QUANT
+int ptensor_has_poly_quant(void) { return 1; }
+
+int ptensor_poly_build_lut(uint32_t degree, uint32_t bits, const float* coeffs,
+                           float* lut) {
+  if (!coeffs || !lut || degree < 1 || degree > 3 || bits < 1 || bits > 16)
+    return invalid();
+  polyquant::build_lut(coeffs, static_cast<uint8_t>(degree),
+                       static_cast<uint8_t>(bits), lut);
+  return PTENSOR_OK;
+}
+
+int ptensor_decode_poly_f32(uint32_t degree, uint32_t bits, const float* coeffs,
+                            const float* lut, const void* codes, uint32_t count,
+                            float* out) {
+  if (!coeffs || !codes || !out || count == 0 || degree < 1 || degree > 3 ||
+      bits < 1 || bits > 16)
+    return invalid();
+  uint32_t rows = 1, cols = count;
+  while (cols > kMaxDim) {
+    ++rows;
+    while (count % rows) ++rows;
+    cols = count / rows;
+  }
+  if (!fits_dim(rows)) return invalid();
+  Session s;
+  {
+    PolyEncoding e = PolyEncoding::make(static_cast<uint8_t>(degree),
+                                        static_cast<uint8_t>(bits), coeffs, lut);
+    Tensor t = new PolyRomTensor({(uint16_t)rows, (uint16_t)cols}, e, codes);
+    const Tensor& ct = t;
+    for (uint32_t i = 0; i < count; ++i) out[i] = static_cast<float>(ct(i));
+  }
+  return s.status();
+}
+#else
+int ptensor_has_poly_quant(void) { return 0; }
+int ptensor_poly_build_lut(uint32_t, uint32_t, const float*, float*) {
+  return invalid();
+}
+int ptensor_decode_poly_f32(uint32_t, uint32_t, const float*, const float*,
+                            const void*, uint32_t, float*) {
   return invalid();
 }
 #endif

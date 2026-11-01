@@ -16,6 +16,9 @@ set(src_ptensor_tensors
 if(PTENSOR_WITH_HOUGH)
   list(APPEND src_ptensor_tensors tensors/HoughRomTensor.cpp)
 endif()
+if(PTENSOR_WITH_POLY_QUANT)
+  list(APPEND src_ptensor_tensors tensors/PolyRomTensor.cpp)
+endif()
 
 set(src_ptensor_ops
    ops/reference/MatrixMultiplyOperator.cpp

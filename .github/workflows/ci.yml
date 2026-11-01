@@ -82,7 +82,7 @@ jobs:
         run: |
           cmake -S . -B build-m4-min -DCMAKE_BUILD_TYPE=MinSizeRel -DPTENSOR_SIZE_PROBE=ON \
             -DPTENSOR_WITH_QUANTIZED_OPS=OFF -DPTENSOR_WITH_SIMPLE_ERROR_HANDLER=OFF \
-            -DPTENSOR_WITH_FAST_KERNELS=OFF -DPTENSOR_WITH_HOUGH=OFF \
+            -DPTENSOR_WITH_FAST_KERNELS=OFF -DPTENSOR_WITH_HOUGH=OFF -DPTENSOR_WITH_POLY_QUANT=OFF \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/arm-none-eabi-cortex-m4.cmake
           cmake --build build-m4-min -j"$(nproc)"
       - name: Size report

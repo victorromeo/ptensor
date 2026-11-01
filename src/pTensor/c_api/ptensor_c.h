@@ -316,6 +316,25 @@ PTENSOR_C_EXPORT int ptensor_decode_hough_f32(uint32_t line_bits,
                                               uint32_t count, float* out);
 PTENSOR_C_EXPORT float ptensor_half_to_float(uint16_t value);
 
+/* ---- Polynomial (quadratic / cubic) quantisation (PTENSOR_WITH_POLY_QUANT) */
+
+/** 1 if this build includes PolyRomTensor, else 0. */
+PTENSOR_C_EXPORT int ptensor_has_poly_quant(void);
+/**
+ * Fill `lut` (2^bits floats) with the value of every code for the degree
+ * 1..3 polynomial `coeffs` (c0..c_degree), exactly as the device does.
+ */
+PTENSOR_C_EXPORT int ptensor_poly_build_lut(uint32_t degree, uint32_t bits,
+                                            const float* coeffs, float* lut);
+/**
+ * Decode `count` bits-bit codes exactly as a PolyRomTensor presents them to
+ * an operator. `lut` may be NULL (the polynomial is then evaluated per read).
+ */
+PTENSOR_C_EXPORT int ptensor_decode_poly_f32(uint32_t degree, uint32_t bits,
+                                             const float* coeffs,
+                                             const float* lut, const void* codes,
+                                             uint32_t count, float* out);
+
 #ifdef __cplusplus
 }
 #endif

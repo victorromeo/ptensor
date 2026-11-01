@@ -28,6 +28,7 @@ option(PTENSOR_BARE_METAL "Target has no OS: never call exit() or use stdio" ${_
 option(PTENSOR_WITH_FAST_KERNELS "Give operators pointer-based fast paths for dense tensors (faster, slightly larger)" ON)
 option(PTENSOR_WITH_QUANTIZED_OPS "Build the int8 TFLM-compatible quantized operators (conv, depthwise conv, fully connected, quantize, dequantize)" ON)
 option(PTENSOR_WITH_HOUGH "Build HoughRomTensor, the Hough line-codebook weight compression (adds no cost to other tensors or operators)" ON)
+option(PTENSOR_WITH_POLY_QUANT "Build PolyRomTensor, quadratic/cubic polynomial weight quantisation through a lookup table (adds no cost to other tensors or operators)" ON)
 option(PTENSOR_BUILD_C_API "Build the ptensor_c shared library (C API used by the Python package)" OFF)
 if(PTENSOR_BUILD_C_API)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)

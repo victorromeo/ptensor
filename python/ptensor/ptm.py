@@ -18,10 +18,11 @@ Layout (little endian):
       int8 conv2d/dense additionally: f32 out_scale, i32 out_zp,
                u32 n_scales, f32 scales[n_scales]   (before the tensors)
     tensor:
-      u8 storage: 0 f32, 1 packed, 2 hough, 3 int8, 4 int32
+      u8 storage: 0 f32, 1 packed, 2 hough, 3 int8, 4 int32, 5 poly
       u8 rank, u16 dims[rank]
       packed: u8 format, u8 bits, f32 scale, i32 zero_point
       hough:  u8 line_bits, u8 t_bits, u16 pair_stride, f32 lines[4 * 2^line_bits]
+      poly:   u8 degree, u8 bits, f32 coeffs[4], u8 has_lut, f32 lut[2^bits] if has_lut
       u32 nbytes, data[nbytes]
 
 Activations: 0 none, 1 relu, 3 relu6. Padding: 1 VALID, 2 SAME.
@@ -30,10 +31,10 @@ import struct
 
 import numpy as np
 
-from .qat import Packed, RawF32, HoughEncoded
+from .qat import Packed, RawF32, HoughEncoded, PolyEncoded
 
 OP_CONV, OP_POOL, OP_DENSE = 1, 2, 3
-ST_F32, ST_PACKED, ST_HOUGH, ST_I8, ST_I32 = 0, 1, 2, 3, 4
+ST_F32, ST_PACKED, ST_HOUGH, ST_I8, ST_I32, ST_POLY = 0, 1, 2, 3, 4, 5
 ACT = {"linear": 0, "relu": 1, "relu6": 3}
 PAD = {"valid": 1, "same": 2}
 
@@ -62,6 +63,14 @@ def tensor_record(t):
         return (struct.pack("<B", ST_HOUGH) + _dims(t.shape)
                 + struct.pack("<BBH", c.line_bits, c.t_bits, c.stride)
                 + c.lines.astype("<f4").tobytes()
+                + struct.pack("<I", len(data)) + data)
+    if isinstance(t, PolyEncoded):
+        c = t.code
+        data = c.stream().tobytes()
+        lut = c.lut().astype("<f4").tobytes() if c.use_lut else b""
+        return (struct.pack("<B", ST_POLY) + _dims(t.shape)
+                + struct.pack("<BB", c.degree, c.bits) + c.coeffs.astype("<f4").tobytes()
+                + struct.pack("<B", 1 if c.use_lut else 0) + lut
                 + struct.pack("<I", len(data)) + data)
     raise TypeError(type(t))
 

@@ -11,27 +11,62 @@ Float baseline before fine-tuning (Keras): 97.72%.
 
 | Mode | Weights stored as | Size | vs float32 | Estimated | Accuracy before QAT | Accuracy (pTensor) | µs / image (decode on the fly) | µs / image (decoded to RAM once) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| float64 | PackedRomTensor float64 | 213320 B | 0.5x | 213320 B | 97.72% | 98.37% | 6038 | 250 |
-| float32 | RomTensor float32 | 106792 B | 1.0x | 106792 B | 97.72% | 98.37% | 261 | same |
-| float16 | PackedRomTensor float16 | 53528 B | 2.0x | 53528 B | 97.72% | 98.38% | 6259 | 262 |
-| int16 | PackedRomTensor int16 | 53560 B | 2.0x | 53560 B | 97.72% | 98.44% | 6253 | 275 |
-| int8 | PackedRomTensor int8 | 26928 B | 4.0x | 26928 B | 97.74% | 98.40% | 6699 | 263 |
-| uint7 | PackedRomTensor uint7 | 23599 B | 4.5x | 23599 B | 97.70% | 98.38% | 6452 | 261 |
-| uint6 | PackedRomTensor uint6 | 20270 B | 5.3x | 20270 B | 97.71% | 98.38% | 6469 | 266 |
-| uint5 | PackedRomTensor uint5 | 16941 B | 6.3x | 16941 B | 97.49% | 98.31% | 6358 | 254 |
-| uint4 | PackedRomTensor uint4 | 13612 B | 7.8x | 13612 B | 97.80% | 98.40% | 6539 | 260 |
-| uint3 | PackedRomTensor uint3 | 10283 B | 10.4x | 10283 B | 97.42% | 98.32% | 6737 | 257 |
-| uint2 | PackedRomTensor uint2 | 6954 B | 15.4x | 6954 B | 77.64% | 96.74% | 6737 | 258 |
-| hough4 | HoughRomTensor + uint fallback | 13864 B | 7.7x | 13864 B | 97.45% | 98.49% | 6326 | 261 |
-| hough3 | HoughRomTensor + uint fallback | 10535 B | 10.1x | 10535 B | 97.65% | 98.28% | 6405 | 262 |
-| hough2 | HoughRomTensor + uint fallback | 7074 B | 15.1x | 7074 B | 94.57% | 98.12% | 6146 | 263 |
-| int8-full | int8 (per-channel), int8 activations | 27192 B | 3.9x | 27192 B | n/a | 98.37% | 399 | same |
+| float64 | PackedRomTensor float64 | 213320 B | 0.5x | 213320 B | 97.72% | 98.37% | 5766 | 255 |
+| float32 | RomTensor float32 | 106792 B | 1.0x | 106792 B | 97.72% | 98.37% | 268 | same |
+| float16 | PackedRomTensor float16 | 53528 B | 2.0x | 53528 B | 97.72% | 98.38% | 6044 | 245 |
+| int16 | PackedRomTensor int16 | 53560 B | 2.0x | 53560 B | 97.72% | 98.44% | 5968 | 255 |
+| int8 | PackedRomTensor int8 | 26928 B | 4.0x | 26928 B | 97.74% | 98.40% | 5915 | 274 |
+| uint7 | PackedRomTensor uint7 | 23599 B | 4.5x | 23599 B | 97.70% | 98.38% | 6434 | 255 |
+| uint6 | PackedRomTensor uint6 | 20270 B | 5.3x | 20270 B | 97.71% | 98.38% | 6086 | 278 |
+| uint5 | PackedRomTensor uint5 | 16941 B | 6.3x | 16941 B | 97.49% | 98.31% | 6138 | 269 |
+| uint4 | PackedRomTensor uint4 | 13612 B | 7.8x | 13612 B | 97.80% | 98.40% | 6237 | 269 |
+| uint3 | PackedRomTensor uint3 | 10283 B | 10.4x | 10283 B | 97.42% | 98.32% | 6097 | 268 |
+| uint2 | PackedRomTensor uint2 | 6954 B | 15.4x | 6954 B | 77.64% | 96.74% | 6349 | 260 |
+| hough4 | HoughRomTensor + uint fallback | 13864 B | 7.7x | 13864 B | 97.45% | 98.49% | 6059 | 260 |
+| hough3 | HoughRomTensor + uint fallback | 10535 B | 10.1x | 10535 B | 97.65% | 98.28% | 6044 | 271 |
+| hough2 | HoughRomTensor + uint fallback | 7074 B | 15.1x | 7074 B | 94.57% | 98.12% | 5860 | 249 |
+| quad16 | PolyRomTensor quadratic 16-bit | 53584 B | 2.0x | 53584 B | 97.72% | 98.39% | 5970 | 258 |
+| quad8 | PolyRomTensor quadratic 8-bit + LUT | 31048 B | 3.4x | 31048 B | 97.76% | 98.42% | 5730 | 257 |
+| quad7 | PolyRomTensor quadratic 7-bit + LUT | 25671 B | 4.2x | 25671 B | 97.73% | 98.40% | 5540 | 267 |
+| quad6 | PolyRomTensor quadratic 6-bit + LUT | 21318 B | 5.0x | 21318 B | 97.76% | 98.37% | 5838 | 296 |
+| quad5 | PolyRomTensor quadratic 5-bit + LUT | 17477 B | 6.1x | 17477 B | 97.49% | 98.49% | 5408 | 255 |
+| quad4 | PolyRomTensor quadratic 4-bit + LUT | 13892 B | 7.7x | 13892 B | 97.74% | 98.40% | 5536 | 258 |
+| quad3 | PolyRomTensor quadratic 3-bit + LUT | 10435 B | 10.2x | 10435 B | 97.30% | 98.30% | 5482 | 260 |
+| quad2 | PolyRomTensor quadratic 2-bit + LUT | 7042 B | 15.2x | 7042 B | 94.22% | 97.92% | 5670 | 269 |
+| cubic16 | PolyRomTensor cubic 16-bit | 53600 B | 2.0x | 53600 B | 97.72% | 98.41% | 5936 | 255 |
+| cubic8 | PolyRomTensor cubic 8-bit + LUT | 31064 B | 3.4x | 31064 B | 97.77% | 98.42% | 5732 | 265 |
+| cubic7 | PolyRomTensor cubic 7-bit + LUT | 25687 B | 4.2x | 25687 B | 97.71% | 98.40% | 5465 | 291 |
+| cubic6 | PolyRomTensor cubic 6-bit + LUT | 21334 B | 5.0x | 21334 B | 97.87% | 98.40% | 5458 | 260 |
+| cubic5 | PolyRomTensor cubic 5-bit + LUT | 17493 B | 6.1x | 17493 B | 97.49% | 98.44% | 5531 | 274 |
+| cubic4 | PolyRomTensor cubic 4-bit + LUT | 13908 B | 7.7x | 13908 B | 97.61% | 98.22% | 5570 | 256 |
+| cubic3 | PolyRomTensor cubic 3-bit + LUT | 10451 B | 10.2x | 10451 B | 97.63% | 98.38% | 5334 | 266 |
+| cubic2 | PolyRomTensor cubic 2-bit + LUT | 7058 B | 15.1x | 7058 B | 96.04% | 97.72% | 5494 | 261 |
+| int8-full | int8 (per-channel), int8 activations | 27192 B | 3.9x | 27192 B | n/a | 98.37% | 416 | same |
 
 Decode on the fly keeps the weights compressed in flash and decodes them as operators read
 them, so it uses no extra RAM; operators fall back to their reference loops for non-dense
 tensors, which is why those columns are ~25x slower than float32 on this host. Decoding once
 to RAM at start-up restores the dense fast paths (same speed as float32) at the cost of
 107 KB of RAM for these weights. Both give identical predictions.
+
+## Linear vs quadratic vs cubic
+
+Same code width, same QAT budget. Size is everything stored in flash (codes,
+per-tensor parameters, biases and, for quadratic/cubic, the lookup tables);
+"LUT" is the part of that taken by the tables (4 bytes x 2^bits per tensor; 16-bit
+codes evaluate the polynomial instead of storing a 256 KB table). Building the tables
+in RAM at start-up from the coefficients moves those bytes from flash to RAM.
+
+| Code width | Linear | Size | Accuracy | Quadratic size (LUT) | Accuracy | Cubic size (LUT) | Accuracy |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 bits | int16 | 53560 B | 98.44% | 53584 B | 98.39% | 53600 B | 98.41% |
+| 8 bits | int8 | 26928 B | 98.40% | 31048 B (4096 B) | 98.42% | 31064 B (4096 B) | 98.42% |
+| 7 bits | uint7 | 23599 B | 98.38% | 25671 B (2048 B) | 98.40% | 25687 B (2048 B) | 98.40% |
+| 6 bits | uint6 | 20270 B | 98.38% | 21318 B (1024 B) | 98.37% | 21334 B (1024 B) | 98.40% |
+| 5 bits | uint5 | 16941 B | 98.31% | 17477 B (512 B) | 98.49% | 17493 B (512 B) | 98.44% |
+| 4 bits | uint4 | 13612 B | 98.40% | 13892 B (256 B) | 98.40% | 13908 B (256 B) | 98.22% |
+| 3 bits | uint3 | 10283 B | 98.32% | 10435 B (128 B) | 98.30% | 10451 B (128 B) | 98.38% |
+| 2 bits | uint2 | 6954 B | 96.74% | 7042 B (64 B) | 97.92% | 7058 B (64 B) | 97.72% |
 
 ## Repeat runs
 
@@ -45,6 +80,12 @@ Accuracy (pTensor, 10,000 images) with different QAT shuffling seeds, same float
 | hough4 | 13864 B | 98.49% | 98.35% | 98.12% | 98.32% |
 | hough3 | 10535 B | 98.28% | 97.90% | 98.14% | 98.11% |
 | hough2 | 7074 B | 98.12% | 97.99% | 98.03% | 98.05% |
+| quad4 | 13892 B | 98.40% | 98.31% | 98.28% | 98.33% |
+| quad3 | 10435 B | 98.30% | 98.30% | 97.81% | 98.14% |
+| quad2 | 7042 B | 97.92% | 98.05% | 97.78% | 97.92% |
+| cubic4 | 13908 B | 98.22% | 98.30% | 98.13% | 98.22% |
+| cubic3 | 10451 B | 98.38% | 98.09% | 97.82% | 98.10% |
+| cubic2 | 7058 B | 97.72% | 98.08% | 97.92% | 97.91% |
 
 Per-layer storage:
 
@@ -62,4 +103,20 @@ Per-layer storage:
 - **hough4**: conv1: uint4, conv2: uint4, dense: hough L=16 t=16 stride=32, logits: uint4
 - **hough3**: conv1: uint3, conv2: uint3, dense: hough L=16 t=4 stride=32, logits: uint3
 - **hough2**: conv1: uint2, conv2: hough L=4 t=4 stride=1, dense: hough L=4 t=4 stride=32, logits: uint2
+- **quad16**: conv1: quadratic 16-bit no LUT, conv2: quadratic 16-bit no LUT, dense: quadratic 16-bit no LUT, logits: quadratic 16-bit no LUT
+- **quad8**: conv1: quadratic 8-bit LUT, conv2: quadratic 8-bit LUT, dense: quadratic 8-bit LUT, logits: quadratic 8-bit LUT
+- **quad7**: conv1: quadratic 7-bit LUT, conv2: quadratic 7-bit LUT, dense: quadratic 7-bit LUT, logits: quadratic 7-bit LUT
+- **quad6**: conv1: quadratic 6-bit LUT, conv2: quadratic 6-bit LUT, dense: quadratic 6-bit LUT, logits: quadratic 6-bit LUT
+- **quad5**: conv1: quadratic 5-bit LUT, conv2: quadratic 5-bit LUT, dense: quadratic 5-bit LUT, logits: quadratic 5-bit LUT
+- **quad4**: conv1: quadratic 4-bit LUT, conv2: quadratic 4-bit LUT, dense: quadratic 4-bit LUT, logits: quadratic 4-bit LUT
+- **quad3**: conv1: quadratic 3-bit LUT, conv2: quadratic 3-bit LUT, dense: quadratic 3-bit LUT, logits: quadratic 3-bit LUT
+- **quad2**: conv1: quadratic 2-bit LUT, conv2: quadratic 2-bit LUT, dense: quadratic 2-bit LUT, logits: quadratic 2-bit LUT
+- **cubic16**: conv1: cubic 16-bit no LUT, conv2: cubic 16-bit no LUT, dense: cubic 16-bit no LUT, logits: cubic 16-bit no LUT
+- **cubic8**: conv1: cubic 8-bit LUT, conv2: cubic 8-bit LUT, dense: cubic 8-bit LUT, logits: cubic 8-bit LUT
+- **cubic7**: conv1: cubic 7-bit LUT, conv2: cubic 7-bit LUT, dense: cubic 7-bit LUT, logits: cubic 7-bit LUT
+- **cubic6**: conv1: cubic 6-bit LUT, conv2: cubic 6-bit LUT, dense: cubic 6-bit LUT, logits: cubic 6-bit LUT
+- **cubic5**: conv1: cubic 5-bit LUT, conv2: cubic 5-bit LUT, dense: cubic 5-bit LUT, logits: cubic 5-bit LUT
+- **cubic4**: conv1: cubic 4-bit LUT, conv2: cubic 4-bit LUT, dense: cubic 4-bit LUT, logits: cubic 4-bit LUT
+- **cubic3**: conv1: cubic 3-bit LUT, conv2: cubic 3-bit LUT, dense: cubic 3-bit LUT, logits: cubic 3-bit LUT
+- **cubic2**: conv1: cubic 2-bit LUT, conv2: cubic 2-bit LUT, dense: cubic 2-bit LUT, logits: cubic 2-bit LUT
 - **int8-full**: int8 weights + int8 activations
