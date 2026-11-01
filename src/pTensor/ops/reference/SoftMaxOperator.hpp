@@ -19,20 +19,23 @@ void inplace_softmax_k(Tensor& in, T beta = 1) {
   }
 
   for (int i = 0; i < out_side_numelems; i++) {
+    // Linear indexing: the softmax runs over the last axis of any rank (the
+    // 2D in(i, j) form indexed rank 3 and 4 tensors out of bounds).
+    const uint32_t row = static_cast<uint32_t>(i) * depth;
     // exp(x[i])/sum(exp(x[i])) == exp(x[i]+C)/sum(exp(x[i]+C))
     T max = std::numeric_limits<T>::lowest();
     for(int j = 0; j < depth; j++){
-      max = std::max(max, static_cast<T>(in(i, j)));
+      max = std::max(max, static_cast<T>(in(row + j)));
     }
 
     T mSum = 0;
     for(int j = 0; j < depth; j++){
-      T tmp = exp((static_cast<T>(in(i,j)) - max) * beta);
+      T tmp = exp((static_cast<T>(in(row + j)) - max) * beta);
       mSum += tmp;
-      in(i,j) = tmp;
+      in(row + j) = tmp;
     }
     for(int j = 0; j < depth; j++){
-      in(i, j)  = static_cast<T>(in(i, j)) / mSum;
+      in(row + j)  = static_cast<T>(in(row + j)) / mSum;
     }
   }
 }
@@ -50,20 +53,23 @@ void softmax_k(Tensor& out, const Tensor& in, T beta=1) {
   }
 
   for (int i = 0; i < out_side_numelems; i++) {
+    // Linear indexing: the softmax runs over the last axis of any rank (the
+    // 2D in(i, j) form indexed rank 3 and 4 tensors out of bounds).
+    const uint32_t row = static_cast<uint32_t>(i) * depth;
     // exp(x[i])/sum(exp(x[i])) == exp(x[i]+C)/sum(exp(x[i]+C))
     T max = std::numeric_limits<T>::lowest();
     for(int j = 0; j < depth; j++){
-      max = std::max(max, static_cast<T>(in(i, j)));
+      max = std::max(max, static_cast<T>(in(row + j)));
     }
 
     T mSum = 0;
     for(int j = 0; j < depth; j++){
-      T tmp = exp((static_cast<T>(in(i,j)) - max) * beta);
+      T tmp = exp((static_cast<T>(in(row + j)) - max) * beta);
       mSum += tmp;
-      out(i,j) = tmp;
+      out(row + j) = tmp;
     }
     for(int j = 0; j < depth; j++){
-      out(i, j)  = static_cast<T>(out(i, j)) / mSum;
+      out(row + j)  = static_cast<T>(out(row + j)) / mSum;
     }
   }
 
@@ -90,15 +96,18 @@ inline void sq_softmax_k(Tensor& out, const Tensor& in, int8_t beta) {
   const int32_t ozp = out->get_quantization_params().get_zeroP_for_channel(0);
 
   for (int i = 0; i < out_side_numelems; i++) {
+    // Linear indexing: the softmax runs over the last axis of any rank (the
+    // 2D in(i, j) form indexed rank 3 and 4 tensors out of bounds).
+    const uint32_t row = static_cast<uint32_t>(i) * depth;
     float max = std::numeric_limits<float>::lowest();
     for(int j = 0; j < depth; j++){
-      const int32_t in32 = static_cast<int8_t>(in(i, j));
+      const int32_t in32 = static_cast<int8_t>(in(row + j));
       max = std::max(max, in_scale * static_cast<float>(in32 - in_zp));
     }
 
     float mSum = 0;
     for(int j = 0; j < depth; j++){
-      const int32_t in32 = static_cast<int8_t>(in(i, j));
+      const int32_t in32 = static_cast<int8_t>(in(row + j));
       const float in_f = in_scale * static_cast<float>(in32 - in_zp);
       mSum += exp((in_f - max) * beta_f);
     }
@@ -106,12 +115,12 @@ inline void sq_softmax_k(Tensor& out, const Tensor& in, int8_t beta) {
     // The input is re-read after outputs are written, so this kernel must
     // not run in place.
     for(int j = 0; j < depth; j++){
-      const int32_t in32 = static_cast<int8_t>(in(i, j));
+      const int32_t in32 = static_cast<int8_t>(in(row + j));
       const float in_f = in_scale * static_cast<float>(in32 - in_zp);
       const float out_val = exp((in_f - max) * beta_f) / mSum;
       const int32_t otmp = static_cast<int32_t>(std::round(out_val / oscale)) + ozp;
       const int8_t out8 = (otmp < -128) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);
-      out(i, j)  = out8;
+      out(row + j)  = out8;
     }
   }
 

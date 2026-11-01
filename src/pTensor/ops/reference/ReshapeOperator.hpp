@@ -23,7 +23,10 @@ public:
   virtual void compute(){
     const Tensor& input_tensor = inputs[input].tensor();
     Tensor& output_tensor = outputs[output].tensor();
-    output_tensor->resize(_shape);
+    // Only resize when needed: a BufferTensor output of the right shape
+    // cannot be resized (it used to raise InvalidResizeError every time).
+    TensorShape target = _shape;
+    if (output_tensor->get_shape() != target) output_tensor->resize(_shape);
     if (input_tensor->num_elems() != output_tensor->num_elems()){
       pTensor_printf("inconsistent input and output shape for reshape\n");
       Context::get_default_context()->throwError(InvalidReshapeError());

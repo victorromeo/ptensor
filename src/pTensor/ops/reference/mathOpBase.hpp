@@ -36,18 +36,22 @@ void arg_min_max_kernel(Tensor& output, const Tensor& input, const Tensor& axis,
     Context::get_default_context()->throwError(InvalidTensorError());
     return;
   }
-  uint32_t axis_dim = axis(0);
+  const uint32_t axis_dim = axis(0);
   TensorShape input_shape = input->get_shape();
-  int num_dims = input_shape.num_dims();
-  if (axis_dim < 0) axis_dim += num_dims;
+  const int num_dims = input_shape.num_dims();
+  if (axis_dim >= static_cast<uint32_t>(num_dims)) {
+    pTensor_printf("axis out of range\n");
+    Context::get_default_context()->throwError(InvalidTensorError());
+    return;
+  }
 
   uint16_t axis_size = input_shape[axis_dim];
   uint32_t outer_size = 1;
-  for (int i = 0; i < axis_dim; ++i) {
+  for (uint32_t i = 0; i < axis_dim; ++i) {
     outer_size *= input_shape[i];
   }
   uint32_t inner_size = 1;
-  for (int i = axis_dim + 1; i < num_dims; ++i) {
+  for (int i = static_cast<int>(axis_dim) + 1; i < num_dims; ++i) {
     inner_size *= input_shape[i];
   }
   for (uint32_t outer = 0; outer < outer_size; ++outer) {
@@ -56,7 +60,9 @@ void arg_min_max_kernel(Tensor& output, const Tensor& input, const Tensor& axis,
       uint32_t min_max_index = 0;
       for (uint32_t i = 1; i < axis_size; ++i) {
         const Tin curr_value = input((outer * axis_size + i) * inner_size + inner);
-        if (cmp * curr_value >= cmp * min_max_value) {
+        // Strict: ties keep the first index, like NumPy and TFLite. Compared
+        // directly (cmp * value wrapped around for unsigned 32-bit inputs).
+        if (cmp == Max ? curr_value > min_max_value : curr_value < min_max_value) {
           min_max_value = curr_value;
           min_max_index = i;
         }

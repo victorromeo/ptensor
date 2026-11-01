@@ -111,7 +111,8 @@ void Conv2dOperator<Tout>::calculateOpData(
 
   int unused_output_height, unused_output_width;
 
-  TFLM::ComputePaddingHeightWidth(stride_height, stride_width, 1, 1, height,
+  TFLM::ComputePaddingHeightWidth(stride_height, stride_width, dialations[0],
+                                  dialations[1], height,
                                   width, filter_height, filter_width,
                                   &padding_height, &padding_width,
                                   TFLM::ToTfLitePadding(padding),
@@ -216,7 +217,8 @@ void Conv2dOperator<Tout>::compute() {
                                 input_offset,
                                 output_offset,
                                 output_activation_min,
-                                output_activation_max
+                                output_activation_max,
+                                _dialation[0], _dialation[1]
                                 );
 
 

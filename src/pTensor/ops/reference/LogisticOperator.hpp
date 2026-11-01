@@ -19,7 +19,7 @@ class InPlaceLogistic : public InPlaceActivationFnc {
 };
   
 template <typename T>
-void InPlaceLogistic<T>::compute() { inplace_softmax_k<T>(inputs[x].tensor()); }
+void InPlaceLogistic<T>::compute() { inplace_sigmoid_k<T>()(inputs[x].tensor()); }  // was softmax
 
 
 template <typename T>

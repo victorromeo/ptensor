@@ -44,27 +44,12 @@ void generic_pool_convolution_kernel(Tensor& out, const Tensor& in,
     // out_cols = input_cols;
   }
   // When we're converting the 32 bit accumulator to a lower bit depth, we
-  int filter_left_offset;
-  int filter_top_offset;
-  if (padding == VALID) {
-    // filter_left_offset =
-    //    ((out_cols - 1) * stride_cols + filter_cols - input_cols + 1) / 2;
-    // filter_top_offset =
-    //    ((out_rows - 1) * stride_rows + filter_rows - input_rows + 1) / 2;
-    filter_left_offset =
-        (((input_cols - filter_cols) / stride_cols) * stride_cols +
-         filter_cols - input_cols + 1) /
-        2;
-    filter_top_offset =
-        (((input_rows - filter_rows) / stride_rows) * stride_rows +
-         filter_rows - input_rows + 1) /
-        2;
-  } else {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
-  }
+  // TensorFlow padding (it used to be negative, and so shift the window,
+  // when the stride was larger than the kernel).
+  const int filter_left_offset =
+      padding_before(input_cols, out_cols, filter_cols, stride_cols, 1, padding);
+  const int filter_top_offset =
+      padding_before(input_rows, out_rows, filter_rows, stride_rows, 1, padding);
 
   {
     // Dense fast path: same per-output computation (out-of-bounds taps read
@@ -85,12 +70,13 @@ void generic_pool_convolution_kernel(Tensor& out, const Tensor& in,
                 const bool row_ok = in_y >= 0 && in_y < input_rows;
                 for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
                   const int in_x = in_x_origin + filter_x;
-                  const T input_value =
-                      (row_ok && in_x >= 0 && in_x < input_cols)
-                          ? in_b[(in_y * input_cols + in_x) * input_depth + out_channel]
-                          : T(0);
-                  filter.PartialCompute(input_value, filter_y, filter_x,
-                                        out_channel, out_channel);
+                  // Taps in the padding are skipped (TensorFlow semantics):
+                  // they used to read as 0, which won a max pool over
+                  // negative values and diluted an average at the border.
+                  if (!row_ok || in_x < 0 || in_x >= input_cols) continue;
+                  filter.PartialCompute(
+                      in_b[(in_y * input_cols + in_x) * input_depth + out_channel],
+                      filter_y, filter_x, out_channel, out_channel);
                 }
               }
               py[out_channel] = filter.finalize();
@@ -121,20 +107,10 @@ void generic_pool_convolution_kernel(Tensor& out, const Tensor& in,
               // ++in_channel) {
               const int in_x = in_x_origin + filter_x;
               const int in_y = in_y_origin + filter_y;
-              T input_value;
-              if ((in_x >= 0) && (in_x < input_cols) && (in_y >= 0) &&
-                  (in_y < input_rows)) {
-                // Commenting out since these indices might be useful later
-                /*
-                  size_t input_index = batch * input_rows * input_cols *
-                  input_depth + in_y * input_cols * input_depth + in_x *
-                  input_depth + in_channel; input_value =
-                  in((uint32_t)input_index);
-                 */
-                input_value = in(batch, in_y, in_x, out_channel);
-              } else {
-                input_value = 0;
-              }
+              if ((in_x < 0) || (in_x >= input_cols) || (in_y < 0) ||
+                  (in_y >= input_rows))
+                continue;  // padding: skipped, as in the fast path
+              const T input_value = in(batch, in_y, in_x, out_channel);
               // size_t filter_index = filter_y * filter_cols * input_depth *
               // filter_count +
               //    filter_x * input_depth * filter_count +

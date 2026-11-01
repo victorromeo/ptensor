@@ -25,7 +25,9 @@ void squantize_convolution_kernel(Tensor& out, const Tensor& in,
                                 const int32_t input_offset,
                                 const int32_t output_offset,
                                 const int32_t output_activation_min,
-                                const int32_t output_activation_max) {
+                                const int32_t output_activation_max,
+                                const int dilation_rows = 1,
+                                const int dilation_cols = 1) {
   const TensorShape& in_shape = in->get_shape();
   const TensorShape& f_shape  = filter->get_shape();
 
@@ -53,19 +55,13 @@ void squantize_convolution_kernel(Tensor& out, const Tensor& in,
     // out_cols = input_cols;
   }
   // When we're converting the 32 bit accumulator to a lower bit depth, we
-  int filter_left_offset;
-  int filter_top_offset;
-  if (padding == VALID) {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols + 1) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows + 1) / 2;
-  } else {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
-  }
+  // TensorFlow padding (it used to be negative, and so shift the window,
+  // when the stride was larger than the kernel).
+  // Dilation was accepted by Conv2dOperator but ignored here.
+  const int filter_left_offset = padding_before(
+      input_cols, out_cols, filter_cols, stride_cols, dilation_cols, padding);
+  const int filter_top_offset = padding_before(
+      input_rows, out_rows, filter_rows, stride_rows, dilation_rows, padding);
 
   // Fast path: every tensor is a dense array, so walk raw pointers. Integer
   // accumulation, so the result is identical to the reference loop below.
@@ -84,10 +80,10 @@ void squantize_convolution_kernel(Tensor& out, const Tensor& in,
             for (int out_channel = 0; out_channel < filter_count; ++out_channel) {
               int32_t acc = 0;
               for (int filter_y = 0; filter_y < filter_rows; ++filter_y) {
-                const int in_y = in_y_origin + filter_y;
+                const int in_y = in_y_origin + dilation_rows * filter_y;
                 if (in_y < 0 || in_y >= input_rows) continue;
                 for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
-                  const int in_x = in_x_origin + filter_x;
+                  const int in_x = in_x_origin + dilation_cols * filter_x;
                   if (in_x < 0 || in_x >= input_cols) continue;
                   const T* xv = pxb + ((size_t)in_y * input_cols + in_x) * input_depth;
                   const T* fv = pf + (((size_t)out_channel * filter_rows + filter_y) *
@@ -129,8 +125,8 @@ void squantize_convolution_kernel(Tensor& out, const Tensor& in,
           for (int filter_y = 0; filter_y < filter_rows; ++filter_y) {
             for (int filter_x = 0; filter_x < filter_cols; ++filter_x) {
               for (int in_channel = 0; in_channel < input_depth; ++in_channel) {
-                const int in_x = in_x_origin + filter_x;
-                const int in_y = in_y_origin + filter_y;
+                const int in_x = in_x_origin + dilation_cols * filter_x;
+                const int in_y = in_y_origin + dilation_rows * filter_y;
                 if ((in_x >= 0) && (in_x < input_cols) && (in_y >= 0) &&
                     (in_y < input_rows)) {
                   // Commenting out since these indices might be useful later

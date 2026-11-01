@@ -121,7 +121,10 @@ void DepthwiseSeparableConvOperator<Tout>::calculateOpData(
 
   int unused_output_height, unused_output_width;
 
-  TFLM::ComputePaddingHeightWidth(stride_height, stride_width, 1, 1, height,
+  // Dilation changes the effective kernel size, and so the SAME padding
+  // (it used to be computed as if the kernel were not dilated).
+  TFLM::ComputePaddingHeightWidth(stride_height, stride_width, dialations[0],
+                                  dialations[1], height,
                                   width, filter_height, filter_width,
                                   &padding_height, &padding_width,
                                   TFLM::ToTfLitePadding(padding),
@@ -131,18 +134,19 @@ void DepthwiseSeparableConvOperator<Tout>::calculateOpData(
       filter->get_shape()[kDepthwiseConvQuantizedDimension];
   const QuantizationParams& affine_quantization =
       filter->get_quantization_params();
+  // Per-channel (TFLite's default) or per-tensor weights; per-tensor
+  // parameters are broadcast below, as TFLite does. (Per-tensor used to raise
+  // InvalidQuantizationSchemeError and a channel-count mismatch.)
   const bool is_per_channel = affine_quantization.num_channels() > 1;
-  // dws conv should be per channel quantized
-  if (!is_per_channel) {
-    Context::get_default_context()->throwError(InvalidQuantizationSchemeError());
-  }
   // check the types are correctly following the spec
   if (input->get_type() != i8 || filter->get_type() != i8 ||
       bias->get_type() != i32) {
     Context::get_default_context()->throwError(InvalidTensorDataTypeError());
+    return;
   }
-  if (!(affine_quantization.num_channels() == num_channels)) {
+  if (is_per_channel && affine_quantization.num_channels() != num_channels) {
     Context::get_default_context()->throwError(qDwsConvPerChannelMismatchError());
+    return;
   }
 
   // PopulateConvolutionQuantizationParams
@@ -226,8 +230,10 @@ void DepthwiseSeparableConvOperator<Tout>::compute() {
   op_params.padding_type = TFLM::ToPaddingType(_padding);
   op_params.padding_values.width = paddingVals.width;
   op_params.padding_values.height = paddingVals.height;
-  op_params.stride_width = _stride[1];
-  op_params.stride_height = _stride[2];
+  // _stride is {1, stride_h, stride_w, 1} (height and width used to be
+  // swapped, which only showed with non-square strides).
+  op_params.stride_height = _stride[1];
+  op_params.stride_width = _stride[2];
   op_params.dilation_width_factor = _dialation[1];
   op_params.dilation_height_factor = _dialation[0];
   op_params.depth_multiplier = depth_multiplier;

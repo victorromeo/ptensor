@@ -50,6 +50,8 @@ if(PTENSOR_WITH_FUSION)
   package_add_test_with_libraries(test_fusion operators/test_fusion.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 endif()
 package_add_test_with_libraries(test_extended_ops operators/test_extended_ops.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_op_audit operators/test_op_audit.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_op_audit_tflite operators/test_op_audit_tflite.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Operators
 package_add_test_with_libraries(test_arith operators/test_arithmetic.cpp ptensor operators "${PROJECT_DIR}/test-data/")

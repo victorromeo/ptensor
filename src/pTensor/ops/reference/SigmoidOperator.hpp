@@ -1,6 +1,7 @@
 #ifndef PTENSOR_ACTIVATIONS_OPS_SIGMOID_H
 #define PTENSOR_ACTIVATIONS_OPS_SIGMOID_H
 
+#include <cmath>
 #include <type_traits>
 
 #include "activationOpBase.hpp"
@@ -52,8 +53,9 @@ inline void sigmoid_k_impl<int8_t>::operator()(Tensor& out, const Tensor& in) co
     const float out_val = one / (one + exp( -in_f ));
     const float oscale = out->get_quantization_params().get_scale_for_channel(0);
     const int32_t ozp = out->get_quantization_params().get_zeroP_for_channel(0);
-    const int32_t otmp = static_cast<int32_t>(out_val/oscale) + ozp;
-    const int8_t out8 = (otmp < -127 ) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);  
+    // Round to nearest (it used to truncate towards zero).
+    const int32_t otmp = static_cast<int32_t>(std::lround(out_val / oscale)) + ozp;
+    const int8_t out8 = (otmp < -128) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);
     out(i) = out8;
   }
 }
