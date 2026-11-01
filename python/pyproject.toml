@@ -9,10 +9,13 @@ description = "Python bindings for the pTensor microcontroller inference library
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = ["numpy"]
+
+[project.optional-dependencies]
+codegen = ["tflite"]          # TFLite frontend; Keras / TF frontends need tensorflow
 license = { text = "Apache-2.0" }
 
 [tool.setuptools]
-packages = ["ptensor"]
+packages = ["ptensor", "ptensor.codegen", "ptensor.codegen.frontends"]
 
 [tool.setuptools.package-data]
 ptensor = ["*.so", "*.dylib", "*.dll"]

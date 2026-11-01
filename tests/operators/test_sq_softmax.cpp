@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstring>
 #include <iostream>
 
@@ -320,3 +321,70 @@ TEST(Softmax, random_gen_softmax__3_q) {
 }
 }
 
+
+/***************************************
+ * Regression: a confident prediction (one logit far above the rest) used to
+ * underflow every exponent, divide by zero and return 127 for every class.
+ ***************************************/
+
+TEST(Softmax, int8_peaked_logits) {
+  bool got_error = false;
+  mErrHandler.set_onError([&got_error](Error* err) { got_error = true; });
+  localCircularArenaAllocator<1024> meta_allocator;
+  localCircularArenaAllocator<256, uint32_t> ram_allocator;
+  Context::get_default_context()->set_metadata_allocator(&meta_allocator);
+  Context::get_default_context()->set_ram_data_allocator(&ram_allocator);
+  Context::get_default_context()->set_ErrorHandler(&mErrHandler);
+
+  // Logits 12.0, -6.0, ..., stored as int8 with scale 0.12, zero point 0.
+  static const int8_t logits[10] = {100, -50, -50, -40, -50, -50, -45, -50, -50, -50};
+  Tensor in = new RomTensor({1, 10}, i8, logits);
+  in->set_quantization_params(PerTensorQuantizationParams(0, 0.12f));
+  int8_t probs[10];
+  Tensor out = new BufferTensor({1, 10}, i8, probs);
+  out->set_quantization_params(PerTensorQuantizationParams(-128, 1.0f / 256.0f));
+
+  pTensor::ReferenceOperators::SoftmaxOperator<int8_t> op;
+  op.set_inputs({{pTensor::ReferenceOperators::SoftmaxOperator<int8_t>::in, in}})
+      .set_outputs({{pTensor::ReferenceOperators::SoftmaxOperator<int8_t>::out, out}})
+      .eval();
+  ASSERT_EQ(got_error, false);
+  EXPECT_EQ(probs[0], 127);  // p ~= 1.0 saturates at the top of the range
+  for (int i = 1; i < 10; i++) EXPECT_EQ(probs[i], -128);
+}
+
+TEST(Softmax, int8_matches_float_softmax) {
+  bool got_error = false;
+  mErrHandler.set_onError([&got_error](Error* err) { got_error = true; });
+  localCircularArenaAllocator<1024> meta_allocator;
+  localCircularArenaAllocator<256, uint32_t> ram_allocator;
+  Context::get_default_context()->set_metadata_allocator(&meta_allocator);
+  Context::get_default_context()->set_ram_data_allocator(&ram_allocator);
+  Context::get_default_context()->set_ErrorHandler(&mErrHandler);
+
+  static const int8_t logits[6] = {-128, -60, 0, 17, 40, 127};
+  const float scale = 0.05f;
+  const int32_t zp = -3;
+  Tensor in = new RomTensor({1, 6}, i8, logits);
+  in->set_quantization_params(PerTensorQuantizationParams(zp, scale));
+  int8_t probs[6];
+  Tensor out = new BufferTensor({1, 6}, i8, probs);
+  out->set_quantization_params(PerTensorQuantizationParams(-128, 1.0f / 256.0f));
+  pTensor::ReferenceOperators::SoftmaxOperator<int8_t> op;
+  op.set_inputs({{pTensor::ReferenceOperators::SoftmaxOperator<int8_t>::in, in}})
+      .set_outputs({{pTensor::ReferenceOperators::SoftmaxOperator<int8_t>::out, out}})
+      .eval();
+  ASSERT_EQ(got_error, false);
+
+  float x[6], mx = -1e30f, sum = 0;
+  for (int i = 0; i < 6; i++) {
+    x[i] = scale * (logits[i] - zp);
+    mx = x[i] > mx ? x[i] : mx;
+  }
+  for (int i = 0; i < 6; i++) sum += std::exp(x[i] - mx);
+  for (int i = 0; i < 6; i++) {
+    const long q = std::lround(std::exp(x[i] - mx) / sum * 256.0f) - 128;
+    const int expected = q < -128 ? -128 : (q > 127 ? 127 : static_cast<int>(q));
+    EXPECT_EQ(probs[i], expected) << "class " << i;
+  }
+}

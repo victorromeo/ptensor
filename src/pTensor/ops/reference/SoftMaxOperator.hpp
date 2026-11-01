@@ -70,6 +70,12 @@ void softmax_k(Tensor& out, const Tensor& in, T beta=1) {
 }
 
 inline void sq_softmax_k(Tensor& out, const Tensor& in, int8_t beta) {
+  // Dequantize, float softmax, requantize (round to nearest), the same
+  // arithmetic as dequantize -> SoftmaxOperator<float> -> quantize. The
+  // running maximum is taken over the dequantized values so the exponents
+  // are always <= 0 (it used to be the raw int8 maximum, which underflowed
+  // every exponent to 0 whenever the scale was small and returned 127 for
+  // every class).
   const float beta_f = static_cast<float>(beta);
   const TensorShape& inShape = in->get_shape();
   int outer_dim = inShape.num_dims() -1;
@@ -78,37 +84,33 @@ inline void sq_softmax_k(Tensor& out, const Tensor& in, int8_t beta) {
   for(int i = 0; i < inShape.num_dims(); i++){
     out_side_numelems *= (i == outer_dim) ? 1: inShape[i];
   }
+  const float in_scale = in->get_quantization_params().get_scale_for_channel(0);
+  const int32_t in_zp = in->get_quantization_params().get_zeroP_for_channel(0);
+  const float oscale = out->get_quantization_params().get_scale_for_channel(0);
+  const int32_t ozp = out->get_quantization_params().get_zeroP_for_channel(0);
 
   for (int i = 0; i < out_side_numelems; i++) {
-    // exp(x[i])/sum(exp(x[i])) == exp(x[i]+C)/sum(exp(x[i]+C))
-    float max = static_cast<float>(std::numeric_limits<int8_t>::lowest());
+    float max = std::numeric_limits<float>::lowest();
     for(int j = 0; j < depth; j++){
-      max = std::max(max, static_cast<float>(static_cast<int8_t>(in(i, j))));
+      const int32_t in32 = static_cast<int8_t>(in(i, j));
+      max = std::max(max, in_scale * static_cast<float>(in32 - in_zp));
     }
 
     float mSum = 0;
     for(int j = 0; j < depth; j++){
-      const int32_t in32 =  static_cast<int8_t>(in(i,j));
-      const float in_scale = in->get_quantization_params().get_scale_for_channel(0);
-      const int32_t in_zp = in->get_quantization_params().get_zeroP_for_channel(0);
-      const float in_f = (in32 - in_zp)*in_scale;
-      const float tmp = exp((in_f - max) * beta_f);
-      mSum += tmp;
-      //out(i,j) = tmp;
+      const int32_t in32 = static_cast<int8_t>(in(i, j));
+      const float in_f = in_scale * static_cast<float>(in32 - in_zp);
+      mSum += exp((in_f - max) * beta_f);
     }
-    // TODO FIXME SLOW but mem efficient
+    // Recomputes the exponentials instead of buffering them: no scratch RAM.
+    // The input is re-read after outputs are written, so this kernel must
+    // not run in place.
     for(int j = 0; j < depth; j++){
-      const int32_t in32 =  static_cast<int8_t>(in(i,j));
-      const float in_scale = in->get_quantization_params().get_scale_for_channel(0);
-      const int32_t in_zp = in->get_quantization_params().get_zeroP_for_channel(0);
-      const float in_f = (in32 - in_zp)*in_scale;
+      const int32_t in32 = static_cast<int8_t>(in(i, j));
+      const float in_f = in_scale * static_cast<float>(in32 - in_zp);
       const float out_val = exp((in_f - max) * beta_f) / mSum;
-      
-      const float oscale = out->get_quantization_params().get_scale_for_channel(0);
-      const int32_t ozp = out->get_quantization_params().get_zeroP_for_channel(0);
-      const int32_t otmp = static_cast<int32_t>(out_val/oscale) + ozp;
-      const int8_t out8 = (otmp < -127 ) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);
-      
+      const int32_t otmp = static_cast<int32_t>(std::round(out_val / oscale)) + ozp;
+      const int8_t out8 = (otmp < -128) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);
       out(i, j)  = out8;
     }
   }

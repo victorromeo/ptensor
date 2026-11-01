@@ -76,6 +76,25 @@ Available:
   straight into `QATModel`. `ptensor.prune.sensitivity()` shows which layers
   tolerate pruning. See `ptensor.prune`.
 
+## Generating C++ for a model
+
+`ptensor.codegen.CodeGenerator` turns a trained model (Keras, TFLite, TF
+SavedModel; PyTorch and ONNX are registered placeholders) into a
+`<name>.h` / `<name>.cpp` / `<name>.cmake` that runs it on pTensor, with
+flags for quantisation, fusion, pruning and memory planning:
+
+```python
+from ptensor.codegen import CodeGenerator
+gen = CodeGenerator("examples/mnist/mnist_int8.tflite", name="mnist")
+gen = CodeGenerator(keras_model, weights="hough4", fuse=True, memory="planned")
+gen = CodeGenerator(keras_model, activations="int8", calibration_data=x_train[:500])
+gen.generate("firmware/model")
+print(gen.report())
+```
+
+or `python -m ptensor.codegen model.tflite -o out --name mnist`. See
+[docs/code_generation.md](../docs/code_generation.md).
+
 ## MNIST example
 
 `examples/mnist/mnist_ptensor.py` runs a full-integer int8 TFLite MNIST model
