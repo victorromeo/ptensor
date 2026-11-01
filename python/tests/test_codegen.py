@@ -224,7 +224,7 @@ class EmitterTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             codegen.load_model(42)
         with self.assertRaises(codegen.FrontendUnavailable):
-            codegen.load_model("x", framework="pytorch")
+            codegen.load_model("x", framework="onnx")
 
     def test_custom_frontend(self):
         @codegen.register_frontend
