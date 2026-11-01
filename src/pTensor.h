@@ -53,6 +53,8 @@
 #include "pTensor/ops/reference/ReshapeOperator.hpp"
 #include "pTensor/ops/reference/ElementwiseOperators.hpp"
 #include "pTensor/ops/reference/LayerOperators.hpp"
+#include "pTensor/ops/reference/SliceOperator.hpp"
+#include "pTensor/ops/reference/ReduceOperator.hpp"
 
 #if PTENSOR_WITH_FUSION
 #include "pTensor/ops/fused/FusedOperators.hpp"

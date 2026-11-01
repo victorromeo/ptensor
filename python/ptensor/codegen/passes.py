@@ -327,6 +327,13 @@ def _weight_q(w, axis):
     return q, scales
 
 
+# Ops with int8 kernels (pad, transpose and slice only move bytes, so they
+# keep their input's quantization).
+_INT8_OPS = LINEAR_OPS + ("max_pool2d", "avg_pool2d", "add", "reshape", "softmax", "pad",
+                          "transpose", "slice")
+_INT8_ACTS = ("relu", "relu6", "sigmoid", "tanh")
+
+
 def quantize_int8(graph, calibration, input_scale=None, input_zero_point=None,
                   float_io=False):
     """Post-training full-integer quantisation, the way the TFLite converter
@@ -348,10 +355,14 @@ def quantize_int8(graph, calibration, input_scale=None, input_zero_point=None,
     if len(graph.inputs) != 1:
         raise NotImplementedError("int8 quantisation of multi-input graphs")
     for n in graph.nodes:
-        if n.op in ("batch_norm", "global_avg_pool") or \
-                (n.op == "activation" and n.attrs["kind"] == "clip"):
+        ok = n.op in _INT8_OPS or (n.op == "activation" and n.attrs["kind"] in _INT8_ACTS)
+        if not ok:
+            what = n.attrs["kind"] if n.op == "activation" else n.op
             raise NotImplementedError("int8 %s (%s) has no TFLite-exact pTensor kernel; keep "
-                                      "the model float or run fuse() first" % (n.op, n.name))
+                                      "the model float or run fuse() first" % (what, n.name))
+        if any(graph.tensors[i].is_const for i in n.inputs[:1]) or \
+                (n.op == "add" and graph.tensors[n.inputs[1]].is_const):
+            raise NotImplementedError("int8 %s (%s) with a constant operand" % (n.op, n.name))
         if n.op in LINEAR_OPS + ("add",) and n.attrs.get("activation") not in (None, "relu", "relu6", "relu1"):
             raise NotImplementedError("int8 %s with clamp %s" % (n.name, n.attrs.get("activation")))
     lo, hi = {}, {}
@@ -375,7 +386,7 @@ def quantize_int8(graph, calibration, input_scale=None, input_zero_point=None,
     for n in g.nodes:
         out = n.outputs[0]
         # Fixed output quantization where TFLite's int8 kernels require it.
-        if n.op in ("max_pool2d", "avg_pool2d", "reshape"):
+        if n.op in ("max_pool2d", "avg_pool2d", "reshape", "pad", "transpose", "slice"):
             q[out] = q[n.inputs[0]]
         elif n.op == "softmax" or (n.op == "activation" and n.attrs["kind"] == "sigmoid"):
             q[out] = QuantParams(1.0 / 256.0, -128)
@@ -395,6 +406,13 @@ def quantize_int8(graph, calibration, input_scale=None, input_zero_point=None,
         n.inputs[1] = g.add_const(w.name + "_q", wq, INT8, QuantParams(ws, 0, axis)).name
         n.inputs[2] = g.add_const(b.name + "_q", bq, INT32,
                                   QuantParams((in_scale * ws).astype(np.float32), 0, 0)).name
+    for n in g.nodes:
+        if n.op == "pad":  # the padding value in the input's int8 code
+            qi = q[n.inputs[0]]
+            v = float(n.attrs.get("value", 0.0))
+            code = -128 if np.isneginf(v) else (127 if np.isposinf(v) else
+                                                int(np.rint(v / qi.scale[0])) + int(qi.zero_point[0]))
+            n.attrs["value"] = int(np.clip(code, -128, 127))
     for name, qp in q.items():
         t = g.tensors[name]
         t.dtype, t.quant = INT8, qp
@@ -443,8 +461,12 @@ def _inplace_ok(g, node):
     x, y = g.tensors[node.inputs[0]], g.tensors[node.outputs[0]]
     if x.dtype != y.dtype or y.nbytes > x.nbytes:
         return False
+    if x.is_const:
+        return False
     if node.op in ("activation", "batch_norm"):
         return True
+    if node.op == "binary":
+        return x.shape == y.shape
     if node.op == "add":
         return x.shape == y.shape
     if node.op == "softmax":  # the int8 kernel re-reads its input after writing

@@ -1,0 +1,200 @@
+[
+ {
+  "mode": "cnn-float",
+  "train_s": 13.8,
+  "nodes": 7,
+  "ops": [
+   "conv2d",
+   "dense",
+   "max_pool2d",
+   "reshape"
+  ],
+  "weights_B": 106792,
+  "arena_B": 31360,
+  "us": 263.09,
+  "ram_hw": 0,
+  "accuracy_pytorch": 0.98,
+  "accuracy_ptensor": 0.98,
+  "max_abs_vs_pytorch": 1.71661376953125e-05,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "cnn-float-unfused-dynamic",
+  "train_s": 13.8,
+  "nodes": 12,
+  "ops": [
+   "activation",
+   "batch_norm",
+   "conv2d",
+   "dense",
+   "max_pool2d",
+   "reshape"
+  ],
+  "weights_B": 107176,
+  "arena_B": null,
+  "us": 1091.26,
+  "ram_hw": 116032,
+  "accuracy_pytorch": 0.98,
+  "accuracy_ptensor": 0.98,
+  "max_abs_vs_pytorch": 1.4573335647583008e-05,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "cnn-int8-ptq",
+  "train_s": 13.8,
+  "nodes": 7,
+  "ops": [
+   "conv2d",
+   "dense",
+   "max_pool2d",
+   "reshape"
+  ],
+  "weights_B": 27424,
+  "arena_B": 7840,
+  "us": 377.57,
+  "ram_hw": 704,
+  "accuracy_pytorch": 0.98,
+  "accuracy_ptensor": 0.98,
+  "max_abs_vs_pytorch": 1.833486557006836,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "mobilenet-float",
+  "train_s": 9.1,
+  "nodes": 17,
+  "ops": [
+   "activation",
+   "binary",
+   "conv2d",
+   "dense",
+   "depthwise_conv2d",
+   "global_avg_pool",
+   "pad",
+   "reshape"
+  ],
+  "weights_B": 5368,
+  "arena_B": 26944,
+  "us": 205.34,
+  "ram_hw": 0,
+  "accuracy_pytorch": 0.748,
+  "accuracy_ptensor": 0.748,
+  "max_abs_vs_pytorch": 1.9550323486328125e-05,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "mobilenet-float-unfused-dynamic",
+  "train_s": 9.1,
+  "nodes": 22,
+  "ops": [
+   "activation",
+   "batch_norm",
+   "binary",
+   "conv2d",
+   "dense",
+   "depthwise_conv2d",
+   "global_avg_pool",
+   "pad",
+   "reshape"
+  ],
+  "weights_B": 6392,
+  "arena_B": null,
+  "us": 573.32,
+  "ram_hw": 86760,
+  "accuracy_pytorch": 0.748,
+  "accuracy_ptensor": 0.748,
+  "max_abs_vs_pytorch": 2.09808349609375e-05,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "row_gru-float",
+  "train_s": 18.4,
+  "nodes": 5,
+  "ops": [
+   "dense",
+   "gru",
+   "reshape",
+   "slice"
+  ],
+  "weights_B": 46888,
+  "arena_B": 8512,
+  "us": 240.31,
+  "ram_hw": 0,
+  "accuracy_pytorch": 0.965,
+  "accuracy_ptensor": 0.965,
+  "max_abs_vs_pytorch": 4.5299530029296875e-06,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "row_gru-float-unfused-dynamic",
+  "train_s": 18.4,
+  "nodes": 5,
+  "ops": [
+   "dense",
+   "gru",
+   "reshape",
+   "slice"
+  ],
+  "weights_B": 46888,
+  "arena_B": null,
+  "us": 248.36,
+  "ram_hw": 11648,
+  "accuracy_pytorch": 0.965,
+  "accuracy_ptensor": 0.965,
+  "max_abs_vs_pytorch": 4.5299530029296875e-06,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "tiny_vit-float",
+  "train_s": 17.1,
+  "nodes": 122,
+  "ops": [
+   "activation",
+   "add",
+   "binary",
+   "concat",
+   "conv2d",
+   "dense",
+   "matmul",
+   "mean",
+   "reshape",
+   "slice",
+   "softmax",
+   "transpose"
+  ],
+  "weights_B": 27032,
+  "arena_B": 67040,
+  "us": 1301.0,
+  "ram_hw": 0,
+  "accuracy_pytorch": 0.912,
+  "accuracy_ptensor": 0.912,
+  "max_abs_vs_pytorch": 3.337860107421875e-06,
+  "same_argmax": 1.0
+ },
+ {
+  "mode": "tiny_vit-float-unfused-dynamic",
+  "train_s": 17.1,
+  "nodes": 122,
+  "ops": [
+   "activation",
+   "add",
+   "binary",
+   "concat",
+   "conv2d",
+   "dense",
+   "matmul",
+   "mean",
+   "reshape",
+   "slice",
+   "softmax",
+   "transpose"
+  ],
+  "weights_B": 27032,
+  "arena_B": null,
+  "us": 1562.39,
+  "ram_hw": 389508,
+  "accuracy_pytorch": 0.912,
+  "accuracy_ptensor": 0.912,
+  "max_abs_vs_pytorch": 3.337860107421875e-06,
+  "same_argmax": 1.0
+ }
+]

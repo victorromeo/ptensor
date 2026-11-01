@@ -57,9 +57,100 @@ def _act(y, activation):
     return np.clip(y, lo, hi)
 
 
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def _softplus(x):
+    return np.where(x > 20.0, x, np.log1p(np.exp(np.minimum(x, 20.0))))
+
+
+def _erf(x):
+    try:
+        from math import erf
+    except ImportError:  # pragma: no cover
+        raise
+    return np.vectorize(erf, otypes=[np.float64])(x)
+
+
+def unary(kind, x, attrs=None):
+    """Elementwise activation / math function `kind` (ir.UNARY_KINDS)."""
+    a = attrs or {}
+    x = np.asarray(x, np.float64)
+    if kind in ("relu", "relu6", "relu1"):
+        return _act(x, kind)
+    f = {
+        "clip": lambda v: np.clip(v, a.get("lo"), a.get("hi")),
+        "sigmoid": _sigmoid,
+        "tanh": np.tanh,
+        "leaky_relu": lambda v: np.where(v >= 0, v, a.get("alpha", 0.01) * v),
+        "elu": lambda v: np.where(v >= 0, v, a.get("alpha", 1.0) * np.expm1(np.minimum(v, 0))),
+        "celu": lambda v: np.where(v >= 0, v, a.get("alpha", 1.0) *
+                                   np.expm1(np.minimum(v, 0) / a.get("alpha", 1.0))),
+        "selu": lambda v: 1.0507009873554805 * np.where(
+            v >= 0, v, 1.6732632423543772 * np.expm1(np.minimum(v, 0))),
+        "gelu": lambda v: 0.5 * v * (1.0 + _erf(v / np.sqrt(2.0))),
+        "gelu_tanh": lambda v: 0.5 * v * (1.0 + np.tanh(0.7978845608028654 *
+                                                        (v + 0.044715 * v ** 3))),
+        "silu": lambda v: v * _sigmoid(v),
+        "mish": lambda v: v * np.tanh(_softplus(v)),
+        "hard_sigmoid": lambda v: np.clip(v / 6.0 + 0.5, 0.0, 1.0),
+        "hard_swish": lambda v: v * np.clip(v / 6.0 + 0.5, 0.0, 1.0),
+        "softplus": _softplus,
+        "softsign": lambda v: v / (1.0 + np.abs(v)),
+        "log_sigmoid": lambda v: -_softplus(-v),
+        "abs": np.abs, "neg": np.negative, "square": np.square,
+        "sqrt": np.sqrt, "rsqrt": lambda v: 1.0 / np.sqrt(v), "exp": np.exp, "log": np.log,
+        "floor": np.floor, "ceil": np.ceil, "round": np.round, "sin": np.sin, "cos": np.cos,
+    }.get(kind)
+    if f is None:
+        raise NotImplementedError("activation %s" % kind)
+    with np.errstate(all="ignore"):
+        return f(x)
+
+
+BINARY = {
+    "add": np.add, "sub": np.subtract, "mul": np.multiply, "div": np.divide,
+    "maximum": np.maximum, "minimum": np.minimum,
+    "squared_difference": lambda p, q: (p - q) ** 2, "pow": np.power,
+}
+
+
+def _value(graph, env, name):
+    return env[name] if name in env else weight(graph, name)
+
+
+def _lstm(x, W, U, b, H):
+    h = np.zeros(H)
+    c = np.zeros(H)
+    out = []
+    for t in range(x.shape[1]):
+        z = x[0, t] @ W + h @ U + b
+        i, f, g, o = _sigmoid(z[:H]), _sigmoid(z[H:2 * H]), np.tanh(z[2 * H:3 * H]), \
+            _sigmoid(z[3 * H:])
+        c = f * c + i * g
+        h = o * np.tanh(c)
+        out.append(h)
+    return np.stack(out)[None]
+
+
+def _gru(x, W, U, bx, bh, H):
+    h = np.zeros(H)
+    out = []
+    for t in range(x.shape[1]):
+        xz = x[0, t] @ W + bx
+        hz = h @ U + bh
+        z = _sigmoid(xz[:H] + hz[:H])
+        r = _sigmoid(xz[H:2 * H] + hz[H:2 * H])
+        n = np.tanh(xz[2 * H:] + r * hz[2 * H:])
+        h = z * h + (1.0 - z) * n
+        out.append(h)
+    return np.stack(out)[None]
+
+
 def run_node(graph, node, env):
     a = node.attrs
-    x = env[node.inputs[0]] if node.inputs else None
+    x = _value(graph, env, node.inputs[0]) if node.inputs else None
     out = graph.tensors[node.outputs[0]]
     op = node.op
     if op in ("conv2d", "depthwise_conv2d"):
@@ -99,23 +190,43 @@ def run_node(graph, node, env):
         inv = gamma / np.sqrt(var + a.get("epsilon", 1e-3))
         return ((x - mean) * inv + beta).astype(np.float32)
     if op == "activation":
-        k = a["kind"]
-        if k == "sigmoid":
-            return (1.0 / (1.0 + np.exp(-x))).astype(np.float32)
-        if k == "tanh":
-            return np.tanh(x).astype(np.float32)
-        if k == "clip":
-            return np.clip(x, a["lo"], a["hi"]).astype(np.float32)
-        return _act(x, k)
+        return unary(a["kind"], x, a).astype(np.float32)
     if op == "add":
-        return _act((x + env[node.inputs[1]]).astype(np.float32).reshape(out.shape),
-                    a.get("activation"))
+        y = x.astype(np.float64) + _value(graph, env, node.inputs[1])
+        return _act(y.astype(np.float32).reshape(out.shape), a.get("activation"))
+    if op == "binary":
+        p = _value(graph, env, node.inputs[0]).astype(np.float64)
+        q = _value(graph, env, node.inputs[1]).astype(np.float64)
+        with np.errstate(all="ignore"):
+            return BINARY[a["kind"]](p, q).astype(np.float32).reshape(out.shape)
     if op == "reshape":
         return x.reshape(out.shape)
     if op == "softmax":
-        z = x.reshape(-1).astype(np.float64) * a.get("beta", 1.0)
-        e = np.exp(z - z.max())
-        return (e / e.sum()).astype(np.float32).reshape(out.shape)
+        z = x.astype(np.float64) * a.get("beta", 1.0)
+        e = np.exp(z - z.max(axis=-1, keepdims=True))
+        return (e / e.sum(axis=-1, keepdims=True)).astype(np.float32).reshape(out.shape)
+    if op == "pad":
+        t, bo, l, r = a["pads"]
+        return np.pad(x, ((0, 0), (t, bo), (l, r), (0, 0)), constant_values=a.get("value", 0.0))
+    if op == "concat":
+        return np.concatenate([_value(graph, env, i) for i in node.inputs], axis=a["axis"])
+    if op == "transpose":
+        return np.ascontiguousarray(np.transpose(x, a["perm"]))
+    if op == "mean":
+        return x.astype(np.float64).mean(axis=tuple(a["axes"])).astype(np.float32).reshape(out.shape)
+    if op == "slice":
+        idx = tuple(slice(b0, b0 + (n - 1) * st + 1, st)
+                    for b0, st, n in zip(a["begin"], a["step"], out.shape))
+        return np.ascontiguousarray(x[idx])
+    if op == "matmul":
+        q = _value(graph, env, node.inputs[1])
+        return (x.astype(np.float64) @ q.astype(np.float64)).astype(np.float32)
+    if op == "lstm":
+        W, U, b = (weight(graph, n).astype(np.float64) for n in node.inputs[1:4])
+        return _lstm(x.astype(np.float64), W, U, b, U.shape[0]).astype(np.float32)
+    if op == "gru":
+        W, U, bx, bh = (weight(graph, n).astype(np.float64) for n in node.inputs[1:5])
+        return _gru(x.astype(np.float64), W, U, bx, bh, U.shape[0]).astype(np.float32)
     raise NotImplementedError("reference interpreter has no %s" % op)
 
 
@@ -186,8 +297,10 @@ def run_ptensor_int8(graph, x):
         elif n.op == "activation" and a["kind"] in ("sigmoid", "tanh"):
             fn = ptensor.sigmoid_int8 if a["kind"] == "sigmoid" else ptensor.tanh_int8
             v = fn(x0, *(qp(n.inputs[0]) + qp(y)))
-        elif n.op == "reshape":
-            v = x0
+        elif n.op in ("reshape", "transpose", "slice", "pad"):
+            v = run_node(graph, n, {n.inputs[0]: x0})
+            if n.op == "pad":
+                v = v.astype(np.int8)
         elif n.op == "softmax":
             v = ptensor.softmax_int8(x0.reshape(1, -1), *qp(n.inputs[0]), *qp(y))
         elif n.op == "add":
@@ -207,4 +320,4 @@ def run_ptensor_int8(graph, x):
     return [env[o] for o in graph.outputs]
 
 
-__all__ = ["run", "run_batch", "run_node", "run_ptensor_int8", "weight", "FLOAT32"]
+__all__ = ["run", "run_batch", "run_node", "run_ptensor_int8", "unary", "weight", "FLOAT32"]

@@ -312,3 +312,59 @@ TEST_F(OpsFixture, fast_recurrent_cells_match_reference) {
   expect_same(B * H);
   EXPECT_EQ(errors, 0);
 }
+
+TEST_F(OpsFixture, slice_strided_4d_and_int8) {
+  // [1, 4, 5, 3] -> x[:, 1:4:2, 0:5:2, 1:3] = [1, 2, 3, 2]
+  float x[60];
+  for (int i = 0; i < 60; ++i) x[i] = static_cast<float>(i);
+  float y[12] = {0};
+  {
+    const uint16_t begin[4] = {0, 1, 0, 1}, step[4] = {1, 2, 2, 1};
+    Tensor tx = new RomTensor({1, 4, 5, 3}, flt, x);
+    Tensor ty = new BufferTensor({1, 2, 3, 2}, flt, y);
+    SliceOperator<float> op(begin, step, 4);
+    op.set_inputs({{SliceOperator<float>::in, tx}})
+        .set_outputs({{SliceOperator<float>::out, ty}})
+        .eval();
+  }
+  int o = 0;
+  for (int h = 1; h < 4; h += 2)
+    for (int w = 0; w < 5; w += 2)
+      for (int c = 1; c < 3; ++c) EXPECT_EQ(y[o++], x[(h * 5 + w) * 3 + c]);
+  // rank 2, int8, through the per-element path (RamTensor output)
+  const int8_t a[6] = {1, 2, 3, 4, 5, 6};  // [2, 3]
+  {
+    const uint16_t begin[2] = {1, 1}, step[2] = {1, 1};
+    Tensor ta = new RomTensor({2, 3}, i8, a);
+    Tensor tb = new RamTensor({1, 2}, i8);
+    SliceOperator<int8_t> op(begin, step, 2);
+    op.set_inputs({{SliceOperator<int8_t>::in, ta}})
+        .set_outputs({{SliceOperator<int8_t>::out, tb}})
+        .eval();
+    EXPECT_EQ(static_cast<int8_t>(tb(0)), 5);
+    EXPECT_EQ(static_cast<int8_t>(tb(1)), 6);
+  }
+  EXPECT_EQ(errors, 0);
+  // out of range: begin 2, step 2, 2 elements of a size-3 dim
+  {
+    const uint16_t begin[2] = {0, 2}, step[2] = {1, 2};
+    Tensor ta = new RomTensor({2, 3}, i8, a);
+    Tensor tb = new RamTensor({2, 2}, i8);
+    SliceOperator<int8_t> op(begin, step, 2);
+    op.set_inputs({{SliceOperator<int8_t>::in, ta}})
+        .set_outputs({{SliceOperator<int8_t>::out, tb}})
+        .eval();
+  }
+  EXPECT_EQ(errors, 1);
+}
+
+TEST_F(OpsFixture, pytorch_activation_functors) {
+  const float xs[7] = {-25.0f, -3.0f, -0.5f, 0.0f, 0.7f, 2.0f, 25.0f};
+  for (float x : xs) {
+    const double d = x;
+    EXPECT_NEAR(activations::GELUErf()(x), 0.5 * d * (1.0 + std::erf(d / std::sqrt(2.0))), 1e-5);
+    EXPECT_NEAR(activations::CELU(0.5f)(x), d >= 0 ? d : 0.5 * (std::exp(d / 0.5) - 1.0), 1e-5);
+    EXPECT_NEAR(activations::Mish()(x), d * std::tanh(std::log1p(std::exp(d))), 1e-5);
+    EXPECT_NEAR(activations::LogSigmoid()(x), -std::log1p(std::exp(-d)), 1e-5);
+  }
+}
