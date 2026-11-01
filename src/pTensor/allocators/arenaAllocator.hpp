@@ -80,8 +80,11 @@ class localCircularArenaAllocatorBase : public AllocatorInterface {
   MetaHeader* _headers;
   size_t _num_headers;
   size_t _max_headers;
+  // Furthest byte from the start of the buffer any block has reached.
+  size_t _high_water;
 
  private:
+  void note_high_water(const uint8_t* block_end);
   // Return the amount of free space at the tail
   uint32_t tail_capacity();
 
@@ -150,6 +153,11 @@ class localCircularArenaAllocatorBase : public AllocatorInterface {
   uint32_t internal_header_unit_size() const;
   size_t num_blocks() const { return _num_headers; }
   size_t max_blocks() const { return _max_headers; }
+  /** Bytes of the buffer that have ever been handed out (the furthest any
+   * block has reached from the start, padding included). Size an arena by
+   * running the model once and reading this. */
+  size_t high_water_mark() const { return _high_water; }
+  void reset_high_water_mark() { _high_water = 0; }
 };
 
 template <size_t sizeT, typename T = uint16_t,

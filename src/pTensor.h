@@ -17,6 +17,7 @@
  * Allocators
  */
 #include "pTensor/allocators/arenaAllocator.hpp"
+#include "pTensor/allocators/arenaPlanner.hpp"
 
 /*
  * Operators

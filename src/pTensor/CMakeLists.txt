@@ -5,6 +5,7 @@ option(ARM_PROJECT "Build for Arm" OFF)
 
 set(src_ptensor_alloc
     allocators/arenaAllocator.cpp
+    allocators/arenaPlanner.cpp
    )
 
 set(src_ptensor_tensors
