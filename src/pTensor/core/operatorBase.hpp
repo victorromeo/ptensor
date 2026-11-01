@@ -6,6 +6,20 @@ namespace pTensor {
 
 enum Padding : uint8_t { UNKNOWN = 0, VALID = 1, SAME = 2 };
 
+/**
+ * Padding added before the first row / column of a windowed operator
+ * (conv, depthwise conv, pooling), with TensorFlow semantics: VALID never
+ * pads; SAME pads max(0, needed) / 2 in front (the odd extra row or column
+ * goes after). `out` is the output size, `k` the kernel size.
+ */
+inline int32_t padding_before(int32_t in, int32_t out, int32_t k,
+                              int32_t stride, int32_t dilation,
+                              Padding padding) {
+  if (padding != SAME) return 0;
+  const int32_t total = (out - 1) * stride + (k - 1) * dilation + 1 - in;
+  return total > 0 ? total / 2 : 0;
+}
+
 // EVENTS AND ERRORS
 DECLARE_ERROR(OperatorIOSizeMismatchError);
 

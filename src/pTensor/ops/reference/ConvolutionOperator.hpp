@@ -2,6 +2,7 @@
 #define PTENSOR_CONVOLUTION_OPS_H
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 #include "pTensor/core/fast_access.hpp"
@@ -41,19 +42,12 @@ void generic_convolution_kernel(Tensor& out, const Tensor& in, Filter filter,
     // out_cols = input_cols;
   }
   // When we're converting the 32 bit accumulator to a lower bit depth, we
-  int filter_left_offset;
-  int filter_top_offset;
-  if (padding == VALID) {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols + 1) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows + 1) / 2;
-  } else {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
-  }
+  // TensorFlow padding (it used to be negative, and so shift the window,
+  // when the stride was larger than the kernel).
+  const int filter_left_offset =
+      padding_before(input_cols, out_cols, filter_cols, stride_cols, 1, padding);
+  const int filter_top_offset =
+      padding_before(input_rows, out_rows, filter_rows, stride_rows, 1, padding);
 
   // If we've got multiple images in our input, work through each of them.
   for (int batch = 0; batch < input_batches; ++batch) {
@@ -141,19 +135,12 @@ void generic_sq_convolution_kernel(
     // out_cols = input_cols;
   }
   // When we're converting the 32 bit accumulator to a lower bit depth, we
-  int filter_left_offset;
-  int filter_top_offset;
-  if (padding == VALID) {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols + 1) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows + 1) / 2;
-  } else {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
-  }
+  // TensorFlow padding (it used to be negative, and so shift the window,
+  // when the stride was larger than the kernel).
+  const int filter_left_offset =
+      padding_before(input_cols, out_cols, filter_cols, stride_cols, 1, padding);
+  const int filter_top_offset =
+      padding_before(input_rows, out_rows, filter_rows, stride_rows, 1, padding);
 
   // If we've got multiple images in our input, work through each of them.
   for (int batch = 0; batch < input_batches; ++batch) {
@@ -208,8 +195,9 @@ void generic_sq_convolution_kernel(
           const float out_val = filter.finalize() + bias(out_channel);
           const float oscale = out->get_quantization_params().get_scale_for_channel(out_channel);
           const int32_t ozp = out->get_quantization_params().get_zeroP_for_channel(out_channel);
-          const int32_t otmp = static_cast<int32_t>(out_val/oscale) + ozp;
-          const int8_t out8 = (otmp < -127 ) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);
+          // Round to nearest (it used to truncate towards zero).
+          const int32_t otmp = static_cast<int32_t>(std::lround(out_val / oscale)) + ozp;
+          const int8_t out8 = (otmp < -128) ? -128 : (otmp > 127) ? 127 : static_cast<int8_t>(otmp);
           out(batch, out_y, out_x, out_channel) = out8;
         }
       }
@@ -247,19 +235,12 @@ void convolution_kernel(Tensor& out, const Tensor& in, const Tensor& filter,
     // out_cols = input_cols;
   }
   // When we're converting the 32 bit accumulator to a lower bit depth, we
-  int filter_left_offset;
-  int filter_top_offset;
-  if (padding == VALID) {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols + 1) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows + 1) / 2;
-  } else {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + filter_cols - input_cols) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + filter_rows - input_rows) / 2;
-  }
+  // TensorFlow padding (it used to be negative, and so shift the window,
+  // when the stride was larger than the kernel).
+  const int filter_left_offset =
+      padding_before(input_cols, out_cols, filter_cols, stride_cols, 1, padding);
+  const int filter_top_offset =
+      padding_before(input_rows, out_rows, filter_rows, stride_rows, 1, padding);
 
   // If we've got multiple images in our input, work through each of them.
   for (int batch = 0; batch < input_batches; ++batch) {
@@ -351,19 +332,12 @@ void depthwise_separable_convolution_kernel(Tensor& out, const Tensor& in,
     // out_cols = input_cols;
   }
   // When we're converting the 32 bit accumulator to a lower bit depth, we
-  int filter_left_offset;
-  int filter_top_offset;
-  if (padding == VALID) {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + dw_filter_cols - input_cols + 1) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + dw_filter_rows - input_rows + 1) / 2;
-  } else {
-    filter_left_offset =
-        ((out_cols - 1) * stride_cols + dw_filter_cols - input_cols) / 2;
-    filter_top_offset =
-        ((out_rows - 1) * stride_rows + dw_filter_rows - input_rows) / 2;
-  }
+  // TensorFlow padding (it used to be negative, and so shift the window,
+  // when the stride was larger than the kernel).
+  const int filter_left_offset =
+      padding_before(input_cols, out_cols, dw_filter_cols, stride_cols, 1, padding);
+  const int filter_top_offset =
+      padding_before(input_rows, out_rows, dw_filter_rows, stride_rows, 1, padding);
 
   // If we've got multiple images in our input, work through each of them.
   for (int batch = 0; batch < input_batches; ++batch) {
@@ -571,10 +545,8 @@ void Conv2dOperator<T>::compute() {
       g.k_w = fs[Conv2dConstants::filter_width_dim];
       g.stride_h = _stride[1]; g.stride_w = _stride[2];
       g.dil_h = 1; g.dil_w = 1;
-      // Same offsets as generic_convolution_kernel.
-      const int32_t extra = (_padding == VALID) ? 1 : 0;
-      g.pad_left = ((g.out_w - 1) * g.stride_w + g.k_w - g.in_w + extra) / 2;
-      g.pad_top = ((g.out_h - 1) * g.stride_h + g.k_h - g.in_h + extra) / 2;
+      g.pad_left = padding_before(g.in_w, g.out_w, g.k_w, g.stride_w, 1, _padding);
+      g.pad_top = padding_before(g.in_h, g.out_h, g.k_h, g.stride_h, 1, _padding);
       fast::conv2d_nhwc_ohwi(px, pf, pb, py, g);
       return;
     }

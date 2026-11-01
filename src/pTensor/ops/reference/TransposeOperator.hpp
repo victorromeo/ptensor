@@ -57,18 +57,28 @@ class TransposeOperator : public OperatorInterface<2, 1> {
       offsets[i] = 0;
     }
 
-    for (size_t i = 0; i < (size_t)input_shape.num_dims(); ++i) {
-      int32_t axis = static_cast<int32_t>(perm_tensor(i));
-      output_shape[axis] = input_shape[i];
-
-      // output_strides(i) is derived from axes and input_strides
-      output_strides[axis] = input_strides[i];
+    // NumPy / TFLite semantics: output axis i is input axis perm[i]. (This
+    // used to apply the inverse permutation, which only agrees when the
+    // permutation is its own inverse, e.g. a swap of two axes.)
+    const int rank = input_shape.num_dims();
+    uint8_t seen = 0;
+    for (int i = 0; i < rank; ++i) {
+      const int32_t axis = static_cast<int32_t>(perm_tensor(i));
+      if (axis < 0 || axis >= rank || (seen & (1u << axis))) {
+        pTensor_printf("perm must be a permutation of the input axes\n");
+        Context::get_default_context()->throwError(InvalidTensorInputError());
+        return;
+      }
+      seen |= 1u << axis;
+      output_shape[i] = input_shape[axis];
+      output_strides[i] = input_strides[axis];
     }
 
     // Output shape can be asserted once the transform
     // effect has been determined
     output_shape.update_dims();
-    output_tensor->resize(output_shape);
+    if (output_tensor->get_shape() != output_shape)
+      output_tensor->resize(output_shape);
 
     // Perform some basic checks
     if (input_tensor->num_elems() != output_tensor->num_elems()) {

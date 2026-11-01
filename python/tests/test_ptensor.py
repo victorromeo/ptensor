@@ -36,13 +36,22 @@ def np_conv2d(x, f, b, stride, padding):
     return out.astype(np.float32)
 
 
-def np_pool(x, k, s, fn):
+def np_pool(x, k, s, fn, padding="VALID"):
+    """TensorFlow pooling: SAME pads, but padded taps are ignored (not 0)."""
     n, h, w, c = x.shape
-    oh, ow = (h - k[0]) // s[0] + 1, (w - k[1]) // s[1] + 1
-    out = np.zeros((n, oh, ow, c), np.float32)
+    if padding == "SAME":
+        oh, ow = -(-h // s[0]), -(-w // s[1])
+        top = max((oh - 1) * s[0] + k[0] - h, 0) // 2
+        left = max((ow - 1) * s[1] + k[1] - w, 0) // 2
+    else:
+        oh, ow = (h - k[0]) // s[0] + 1, (w - k[1]) // s[1] + 1
+        top = left = 0
+    out = np.zeros((n, oh, ow, c), x.dtype if x.dtype == np.int8 else np.float32)
     for i in range(oh):
         for j in range(ow):
-            out[:, i, j, :] = fn(x[:, i * s[0]:i * s[0] + k[0], j * s[1]:j * s[1] + k[1], :], axis=(1, 2))
+            y0, x0 = i * s[0] - top, j * s[1] - left
+            win = x[:, max(y0, 0):y0 + k[0], max(x0, 0):x0 + k[1], :]
+            out[:, i, j, :] = fn(win, axis=(1, 2))
     return out
 
 
@@ -102,6 +111,32 @@ class FloatOps(unittest.TestCase):
         np.testing.assert_allclose(ptensor.maxpool2d(x, 2), np_pool(x, (2, 2), (2, 2), np.max))
         np.testing.assert_allclose(ptensor.avgpool2d(x, 2), np_pool(x, (2, 2), (2, 2), np.mean),
                                    rtol=1e-5, atol=1e-6)
+
+    def test_pooling_padding_and_strides(self):
+        # SAME borders (padding ignored), strides larger than the kernel, and
+        # all-negative inputs, where a zero leaking in from the padding shows.
+        cases = [((7, 7), (3, 3), (2, 2), "SAME"), ((5, 6), (2, 2), (2, 2), "SAME"),
+                 ((6, 6), (3, 3), (1, 1), "SAME"), ((8, 8), (1, 1), (4, 4), "SAME"),
+                 ((8, 8), (2, 2), (4, 4), "SAME"), ((11, 9), (2, 2), (4, 4), "VALID"),
+                 ((7, 5), (3, 3), (2, 2), "VALID")]
+        for (h, w), k, st, pad in cases:
+            x = -np.abs(RNG.standard_normal((2, h, w, 3))).astype(np.float32) - 0.1
+            np.testing.assert_allclose(ptensor.maxpool2d(x, k, st, pad),
+                                       np_pool(x, k, st, np.max, pad), err_msg=str((h, w, k, st, pad)))
+            np.testing.assert_allclose(ptensor.avgpool2d(x, k, st, pad),
+                                       np_pool(x, k, st, np.mean, pad), rtol=1e-5, atol=1e-6,
+                                       err_msg=str((h, w, k, st, pad)))
+            xq = RNG.integers(-128, 0, (2, h, w, 3)).astype(np.int8)
+            np.testing.assert_array_equal(ptensor.maxpool2d_int8(xq, k, st, pad),
+                                          np_pool(xq, k, st, np.max, pad))
+
+    def test_conv2d_stride_larger_than_kernel(self):
+        for (h, w), k, st, pad in [((8, 8), 1, 4, "SAME"), ((8, 8), 2, 4, "SAME"),
+                                   ((11, 11), 2, 4, "VALID"), ((9, 7), 2, 3, "VALID")]:
+            x = RNG.standard_normal((1, h, w, 2)).astype(np.float32)
+            f = RNG.standard_normal((3, k, k, 2)).astype(np.float32)
+            np.testing.assert_allclose(ptensor.conv2d(x, f, stride=st, padding=pad),
+                                       np_conv2d(x, f, None, (st, st), pad), rtol=1e-4, atol=1e-4)
 
     def test_bad_arguments_raise(self):
         with self.assertRaises(ValueError):

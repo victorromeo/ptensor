@@ -33,11 +33,9 @@ inline uint32_t last_dim(const TensorShape& s) {
 // Output-size-consistent "SAME"/"VALID" padding offset, TensorFlow semantics.
 inline int32_t pad_before(uint32_t in, uint32_t out, uint32_t k,
                           uint32_t stride, uint32_t dilation, Padding p) {
-  if (p != SAME) return 0;
-  const int32_t eff_k = static_cast<int32_t>((k - 1) * dilation + 1);
-  const int32_t total =
-      static_cast<int32_t>((out - 1) * stride) + eff_k - static_cast<int32_t>(in);
-  return total > 0 ? total / 2 : 0;
+  return padding_before(static_cast<int32_t>(in), static_cast<int32_t>(out),
+                        static_cast<int32_t>(k), static_cast<int32_t>(stride),
+                        static_cast<int32_t>(dilation), p);
 }
 
 }  // namespace layer_detail
