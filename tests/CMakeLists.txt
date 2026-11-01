@@ -31,6 +31,7 @@ endmacro()
 # Core
 package_add_test_with_libraries(test_types core/test_types.cpp ptensor_core core "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_alloc allocators/test_arenaAllocator.cpp ptensor allocators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_arena_planner allocators/test_arenaPlanner.cpp ptensor allocators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_context core/test_context.cpp ptensor core "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_quantparams core/test_quantization_params.cpp ptensor core "${PROJECT_DIR}/test-data/")
 
@@ -44,6 +45,9 @@ if(PTENSOR_WITH_POLY_QUANT)
 endif()
 if(PTENSOR_WITH_HOUGH)
   package_add_test_with_libraries(test_houghromtensor tensors/test_houghromtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
+endif()
+if(PTENSOR_WITH_FUSION)
+  package_add_test_with_libraries(test_fusion operators/test_fusion.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 endif()
 package_add_test_with_libraries(test_extended_ops operators/test_extended_ops.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 

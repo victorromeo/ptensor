@@ -192,6 +192,7 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
   // table
   void* reallocated = attempt_to_reuse_inactive_region(sz);
   if(reallocated){
+    note_high_water(reinterpret_cast<uint8_t*>(reallocated) + sz);
     return reallocated;
   }
   if (sz > (end() - reinterpret_cast<uint8_t*>(cursor))){
@@ -234,11 +235,17 @@ void localCircularArenaAllocatorBase::_bind(void* ptr, Handle* hndl) {
 
   // Update capacity (accounts for any alignment padding as well)
   capacity = end() - cursor;
+  note_high_water(cursor);
 
   return (void*)loc;
 }
 
- void localCircularArenaAllocatorBase::_deallocate(void* ptr) {
+ void localCircularArenaAllocatorBase::note_high_water(const uint8_t* block_end) {
+  const size_t used = static_cast<size_t>(block_end - begin());
+  if (used > _high_water) _high_water = used;
+}
+
+void localCircularArenaAllocatorBase::_deallocate(void* ptr) {
   if (ptr) {
     MetaHeader& hdr = _read_header(ptr);
     if (hdr.is_bound()) {
@@ -259,7 +266,8 @@ localCircularArenaAllocatorBase::localCircularArenaAllocatorBase(
       cursor(buffer),
       _headers(headers),
       _num_headers(0),
-      _max_headers(max_headers) {
+      _max_headers(max_headers),
+      _high_water(0) {
   Context::get_default_context()->notifyEvent(
       localCircularArenaAllocatorConstructed());
   cursor = begin();

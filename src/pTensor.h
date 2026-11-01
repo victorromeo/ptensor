@@ -17,6 +17,7 @@
  * Allocators
  */
 #include "pTensor/allocators/arenaAllocator.hpp"
+#include "pTensor/allocators/arenaPlanner.hpp"
 
 /*
  * Operators
@@ -52,6 +53,14 @@
 #include "pTensor/ops/reference/ReshapeOperator.hpp"
 #include "pTensor/ops/reference/ElementwiseOperators.hpp"
 #include "pTensor/ops/reference/LayerOperators.hpp"
+
+#if PTENSOR_WITH_FUSION
+#include "pTensor/ops/fused/FusedOperators.hpp"
+#include "pTensor/util/fusion.hpp"
+#if PTENSOR_WITH_QUANTIZED_OPS
+#include "pTensor/ops/fused/QuantizedAddOperator.hpp"
+#endif
+#endif
 
 
 /*
