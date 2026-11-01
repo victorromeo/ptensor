@@ -52,11 +52,21 @@ Available:
 - Packing: `pack_bits`, `decode_packed`, `packed_size`, `float_to_half`,
   `half_to_float`
 
+- Hough compression: `hough_quantize(w, line_bits, t_bits)` returns a
+  `HoughCode` (`.stream()`, `.lines`, `.nbytes`, `.decode()`,
+  `.decode_on_device()`); see `ptensor.hough`
+- Quantisation-aware training (needs TensorFlow): `QATModel(model, mode)` with
+  `report_current()`, `report_estimate()`, `fit()`, `report_final()`,
+  `export()`; modes in `ptensor.qat.MODES` (float64/32/16, int16, int8,
+  uint2..uint7, hough2/3/4). `ptensor.ptm` writes the result as a `.ptm` model.
+
 ## MNIST example
 
 `examples/mnist/mnist_ptensor.py` runs a full-integer int8 TFLite MNIST model
 through these bindings and checks it against TFLite. See
 [examples/mnist](../examples/mnist/README.md).
+[examples/mnist_modes](../examples/mnist_modes/README.md) trains the same
+network in every storage mode with QAT and benchmarks each on pTensor.
 
 ## Tests
 

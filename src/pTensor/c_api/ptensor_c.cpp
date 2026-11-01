@@ -22,6 +22,7 @@
 #include "pTensor/ptensor_config.h"
 #include "pTensor/tensors/BufferTensor.hpp"
 #include "pTensor/tensors/PackedRomTensor.hpp"
+#include "pTensor/tensors/HoughRomTensor.hpp"
 #include "pTensor/tensors/RomTensor.hpp"
 #include "pTensor/util/packing.hpp"
 #if PTENSOR_WITH_QUANTIZED_OPS
@@ -913,5 +914,54 @@ uint16_t ptensor_float_to_half(float value) {
 float ptensor_half_to_float(uint16_t value) {
   return packing::half_to_float(value);
 }
+
+#if PTENSOR_WITH_HOUGH
+int ptensor_has_hough(void) { return 1; }
+
+size_t ptensor_hough_stream_size(uint32_t line_bits, uint32_t t_bits,
+                                 uint32_t pair_stride, uint32_t count) {
+  if (line_bits > 8 || t_bits > 16 || pair_stride > 0xFFFFu) return 0;
+  HoughEncoding e = HoughEncoding::make(static_cast<uint8_t>(line_bits),
+                                        static_cast<uint8_t>(t_bits),
+                                        static_cast<uint16_t>(pair_stride),
+                                        reinterpret_cast<const float*>(1));
+  return hough_stream_size(e, count);
+}
+
+int ptensor_decode_hough_f32(uint32_t line_bits, uint32_t t_bits,
+                             uint32_t pair_stride, const float* lines,
+                             const void* stream, uint32_t count, float* out) {
+  if (!lines || !stream || !out || count == 0 ||
+      ptensor_hough_stream_size(line_bits, t_bits, pair_stride, count) == 0)
+    return invalid();
+  // Tensor shapes are 16-bit per dimension; use a 2-D view for big tensors.
+  uint32_t rows = 1, cols = count;
+  while (cols > kMaxDim) {
+    ++rows;
+    while (count % rows) ++rows;
+    cols = count / rows;
+  }
+  if (!fits_dim(rows)) return invalid();
+  Session s;
+  {
+    HoughEncoding e = HoughEncoding::make(
+        static_cast<uint8_t>(line_bits), static_cast<uint8_t>(t_bits),
+        static_cast<uint16_t>(pair_stride), lines);
+    Tensor t = new HoughRomTensor({(uint16_t)rows, (uint16_t)cols}, e, stream);
+    const Tensor& ct = t;
+    for (uint32_t i = 0; i < count; ++i) out[i] = static_cast<float>(ct(i));
+  }
+  return s.status();
+}
+#else
+int ptensor_has_hough(void) { return 0; }
+size_t ptensor_hough_stream_size(uint32_t, uint32_t, uint32_t, uint32_t) {
+  return 0;
+}
+int ptensor_decode_hough_f32(uint32_t, uint32_t, uint32_t, const float*,
+                             const void*, uint32_t, float*) {
+  return invalid();
+}
+#endif
 
 }  // extern "C"

@@ -290,6 +290,30 @@ PTENSOR_C_EXPORT int ptensor_decode_packed_f32(int format, uint32_t bits,
                                                const void* data, uint32_t count,
                                                float* out);
 PTENSOR_C_EXPORT uint16_t ptensor_float_to_half(float value);
+
+/* ---- Hough line-codebook storage (PTENSOR_WITH_HOUGH) ----------------- */
+
+/** 1 if this build includes HoughRomTensor, else 0. */
+PTENSOR_C_EXPORT int ptensor_has_hough(void);
+/**
+ * Bytes of code stream for `count` values stored as Hough codes (the
+ * 16 * 2^line_bits byte codebook is extra). 0 if the parameters are invalid
+ * or Hough support is not built in.
+ */
+PTENSOR_C_EXPORT size_t ptensor_hough_stream_size(uint32_t line_bits,
+                                                  uint32_t t_bits,
+                                                  uint32_t pair_stride,
+                                                  uint32_t count);
+/**
+ * Decode `count` values exactly as a HoughRomTensor presents them to an
+ * operator. `lines` holds 4 * 2^line_bits floats (ax, ay, dx, dy per line).
+ */
+PTENSOR_C_EXPORT int ptensor_decode_hough_f32(uint32_t line_bits,
+                                              uint32_t t_bits,
+                                              uint32_t pair_stride,
+                                              const float* lines,
+                                              const void* stream,
+                                              uint32_t count, float* out);
 PTENSOR_C_EXPORT float ptensor_half_to_float(uint16_t value);
 
 #ifdef __cplusplus

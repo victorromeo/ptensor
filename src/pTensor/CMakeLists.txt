@@ -13,6 +13,9 @@ set(src_ptensor_tensors
   tensors/RomTensor.cpp
   tensors/PackedRomTensor.cpp
    )
+if(PTENSOR_WITH_HOUGH)
+  list(APPEND src_ptensor_tensors tensors/HoughRomTensor.cpp)
+endif()
 
 set(src_ptensor_ops
    ops/reference/MatrixMultiplyOperator.cpp

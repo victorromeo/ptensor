@@ -11,4 +11,7 @@
  * off keeps only the reference loops (smaller code, much slower). */
 #cmakedefine01 PTENSOR_WITH_FAST_KERNELS
 
+/* 1 if HoughRomTensor (Hough line-codebook weight storage) is built in. */
+#cmakedefine01 PTENSOR_WITH_HOUGH
+
 #endif

@@ -63,6 +63,10 @@
 #include "pTensor/tensors/RomTensor.hpp"
 #include "pTensor/tensors/PackedRomTensor.hpp"
 #include "pTensor/util/packing.hpp"
+#if PTENSOR_WITH_HOUGH
+#include "pTensor/tensors/HoughRomTensor.hpp"
+#include "pTensor/util/hough.hpp"
+#endif
 
 /*
  * Error Handlers
