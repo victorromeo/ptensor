@@ -410,6 +410,56 @@ int ptensor_maxpool2d_i8(const int8_t* in, uint32_t n, uint32_t h, uint32_t w,
   return run_pool<MaxPoolOperator<int8_t> >(in, i8, n, h, w, c, kh, kw,
                                             stride_h, stride_w, padding, out);
 }
+int ptensor_avgpool2d_i8(const int8_t* in, uint32_t n, uint32_t h, uint32_t w,
+                         uint32_t c, uint32_t kh, uint32_t kw,
+                         uint32_t stride_h, uint32_t stride_w, int padding,
+                         int8_t* out) {
+  // A mean keeps the input's quantization, so no requantization either.
+  return run_pool<AvgPoolOperator<int8_t> >(in, i8, n, h, w, c, kh, kw,
+                                            stride_h, stride_w, padding, out);
+}
+int ptensor_sigmoid_i8(const int8_t* in, int8_t* out, uint32_t count,
+                       float in_scale, int32_t in_zp, float out_scale,
+                       int32_t out_zp) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_sigmoid_i8(in + o, out + o, n, in_scale, in_zp, out_scale, out_zp);
+    });
+  if (!in || !out || !fits_dim(count) || !(in_scale > 0) || !(out_scale > 0))
+    return invalid();
+  Session s;
+  {
+    typedef LogisticOperator<int8_t> Op;
+    Tensor tin = new RomTensor({(uint16_t)count}, i8, in);
+    tin->set_quantization_params(PerTensorQuantizationParams(in_zp, in_scale));
+    Tensor tout = new BufferTensor({(uint16_t)count}, i8, out);
+    tout->set_quantization_params(PerTensorQuantizationParams(out_zp, out_scale));
+    Op op;
+    op.set_inputs({{Op::in, tin}}).set_outputs({{Op::out, tout}}).eval();
+  }
+  return s.status();
+}
+int ptensor_tanh_i8(const int8_t* in, int8_t* out, uint32_t count,
+                    float in_scale, int32_t in_zp, float out_scale,
+                    int32_t out_zp) {
+  if (in && out && count > kMaxDim)
+    return chunked(count, 1, [&](uint32_t o, uint32_t n) {
+      return ptensor_tanh_i8(in + o, out + o, n, in_scale, in_zp, out_scale, out_zp);
+    });
+  if (!in || !out || !fits_dim(count) || !(in_scale > 0) || !(out_scale > 0))
+    return invalid();
+  Session s;
+  {
+    typedef TanhOperator<int8_t> Op;
+    Tensor tin = new RomTensor({(uint16_t)count}, i8, in);
+    tin->set_quantization_params(PerTensorQuantizationParams(in_zp, in_scale));
+    Tensor tout = new BufferTensor({(uint16_t)count}, i8, out);
+    tout->set_quantization_params(PerTensorQuantizationParams(out_zp, out_scale));
+    Op op;
+    op.set_inputs({{Op::act_in, tin}}).set_outputs({{Op::act_out, tout}}).eval();
+  }
+  return s.status();
+}
 int ptensor_avgpool2d_f32(const float* in, uint32_t n, uint32_t h, uint32_t w,
                           uint32_t c, uint32_t kh, uint32_t kw,
                           uint32_t stride_h, uint32_t stride_w, int padding,

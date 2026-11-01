@@ -395,6 +395,58 @@ class CompileTest(unittest.TestCase):
         exp = np.stack([reference.run_ptensor_int8(q, xi)[0].reshape(-1) for xi in xs])
         np.testing.assert_array_equal(y, exp)
 
+    def test_int8_avgpool_sigmoid_tanh_match_bindings(self):
+        if not self.has("PTENSOR_WITH_QUANTIZED_OPS"):
+            self.skipTest("built without the int8 operators")
+        # conv -> avg pool (SAME, ragged border) -> tanh -> conv -> sigmoid ->
+        # avg pool (VALID) -> flatten -> dense
+        g = ir.Graph("act")
+        x = g.add_tensor("x", (1, 7, 7, 2))
+        g.inputs.append(x.name)
+        c1 = g.add_tensor("c1", (1, 7, 7, 4))
+        g.add_node("conv2d", [x, g.add_const("w1", rand(4, 3, 3, 2)), g.add_const("b1", rand(4))], [c1],
+                   {"stride": (1, 1), "padding": "SAME", "dilation": (1, 1), "activation": None}, "conv1")
+        p1 = g.add_tensor("p1", (1, 4, 4, 4))
+        g.add_node("avg_pool2d", [c1], [p1], {"kernel": (3, 3), "stride": (2, 2), "padding": "SAME"}, "pool1")
+        t = g.add_tensor("t", (1, 4, 4, 4))
+        g.add_node("activation", [p1], [t], {"kind": "tanh"}, "tanh")
+        c2 = g.add_tensor("c2", (1, 4, 4, 3))
+        g.add_node("conv2d", [t, g.add_const("w2", rand(3, 1, 1, 4)), g.add_const("b2", rand(3))], [c2],
+                   {"stride": (1, 1), "padding": "VALID", "dilation": (1, 1), "activation": None}, "conv2")
+        s = g.add_tensor("s", (1, 4, 4, 3))
+        g.add_node("activation", [c2], [s], {"kind": "sigmoid"}, "sigmoid")
+        p2 = g.add_tensor("p2", (1, 2, 2, 3))
+        g.add_node("avg_pool2d", [s], [p2], {"kernel": (2, 2), "stride": (2, 2), "padding": "VALID"}, "pool2")
+        f = g.add_tensor("f", (1, 12))
+        g.add_node("reshape", [p2], [f], name="flatten")
+        y = g.add_tensor("y", (1, 3))
+        g.add_node("dense", [f, g.add_const("w3", rand(12, 3)), g.add_const("b3", rand(3))], [y],
+                   {"activation": None}, "fc")
+        g.outputs.append(y.name)
+        g.validate()
+        cal = [RNG.uniform(0, 1, (1, 7, 7, 2)).astype(np.float32) for _ in range(20)]
+        gen = CodeGenerator(g, name="m_act8", activations="int8", calibration_data=cal,
+                            input_scale=1 / 255.0, input_zero_point=-128)
+        src = gen.emit()["m_act8.cpp"]
+        self.assertIn("AvgPoolOperator<int8_t>", src)
+        self.assertIn("LogisticOperator<int8_t>", src)
+        self.assertIn("TanhOperator<int8_t>", src)
+        q = gen.graph
+        # TFLite's fixed output quantization
+        self.assertEqual(q.tensors["s"].quant.zero_point[0], -128)
+        self.assertAlmostEqual(float(q.tensors["s"].quant.scale[0]), 1 / 256.0)
+        self.assertEqual(q.tensors["t"].quant.zero_point[0], 0)
+        self.assertAlmostEqual(float(q.tensors["t"].quant.scale[0]), 1 / 128.0)
+        self.assertEqual(q.tensors["p1"].quant.scale[0], q.tensors["c1"].quant.scale[0])
+        xs = [np.clip(np.rint(xi * 255) - 128, -128, 127).astype(np.int8) for xi in cal[:6]]
+        y_c = self.run_model(gen, xs)
+        exp = np.stack([reference.run_ptensor_int8(q, xi)[0].reshape(-1) for xi in xs])
+        np.testing.assert_array_equal(y_c, exp)
+        # and close to the float model
+        yf = np.stack([reference.run(g, xi)[0].reshape(-1) for xi in cal[:6]])
+        yq = (exp.astype(np.float32) - q.tensors["y"].quant.zero_point[0]) * q.tensors["y"].quant.scale[0]
+        self.assertLess(np.abs(yq - yf).max(), 0.1)
+
 
 class TFLiteFrontendTest(unittest.TestCase):
     def test_mnist_int8(self):

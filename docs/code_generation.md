@@ -183,9 +183,9 @@ not compiled.
 ## Verification
 
 [examples/codegen/verify_models.py](../examples/codegen/verify_models.py)
-generates 24 variants of an MNIST CNN and a small residual network
-(depthwise, separable conv, batch norm, residual add) from Keras, TFLite and
-a SavedModel, compiles each, runs it on the test set and compares it with
+generates 26 variants of an MNIST CNN, a small residual network
+(depthwise, separable conv, batch norm, residual add) and a network with
+average pooling, tanh and sigmoid, from Keras, TFLite and a SavedModel, compiles each, runs it on the test set and compares it with
 Python. Results are in
 [examples/codegen/RESULTS.md](../examples/codegen/RESULTS.md). In short:
 
@@ -210,9 +210,12 @@ tests.
 
 * Batch 1, single subgraph, at most 4 dimensions of at most 65535 each
   (pTensor's `TensorShape`).
-* int8: no TFLite-exact pTensor kernel yet for average pooling, global
-  average pooling, sigmoid, tanh or standalone batch norm; the generator
-  says which node is the problem. Weight storage modes (packed, Hough,
+* int8: average pooling, sigmoid and tanh are supported and TFLite-exact
+  (sigmoid and softmax outputs use TFLite's fixed scale 1/256, zero point
+  -128; tanh uses 1/128, 0; average pooling keeps its input's quantization).
+  Global average pooling, standalone batch norm and standalone clip
+  activations are not supported yet; the generator says which node is
+  the problem. Weight storage modes (packed, Hough,
   polynomial) apply to float activations.
 * The reference float conv has no dilation; dilated convolutions need
   `fuse=True`.

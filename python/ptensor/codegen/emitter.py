@@ -346,7 +346,10 @@ class CEmitter(object):
 
         elif op in ("max_pool2d", "avg_pool2d"):
             if int8 and op == "avg_pool2d":
-                raise EmitterError("int8 avg_pool2d has no TFLite-exact pTensor kernel")
+                qi, qo = g.tensors[node.inputs[0]].quant, g.tensors[node.outputs[0]].quant
+                if (float(qi.scale[0]), int(qi.zero_point[0])) != (float(qo.scale[0]), int(qo.zero_point[0])):
+                    raise EmitterError("int8 avg_pool2d %s must keep its input's quantization "
+                                       "(as TFLite requires)" % node.name)
             T = "int8_t" if int8 else "float"
             hdr, cls = (("MaxPoolOperator.hpp", "MaxPoolOperator") if op == "max_pool2d" else
                         ("AvgPoolOperator.hpp", "AvgPoolOperator"))
@@ -383,6 +386,15 @@ class CEmitter(object):
                 body = ("typedef %s<%s> Op;\n    Op op;\n"
                         "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();"
                         % (cls, T, X, Y))
+            elif int8 and k == "sigmoid":
+                self.includes.add("pTensor/ops/reference/LogisticOperator.hpp")
+                body = ("typedef LogisticOperator<int8_t> Op;\n    Op op;\n"
+                        "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();" % (X, Y))
+            elif int8 and k == "tanh":
+                self.includes.add("pTensor/ops/reference/TanhOperator.hpp")
+                body = ("typedef TanhOperator<int8_t> Op;\n    Op op;\n"
+                        "    op.set_inputs({{Op::act_in, %s}}).set_outputs({{Op::act_out, %s}}).eval();"
+                        % (X, Y))
             elif int8:
                 raise EmitterError("int8 %s activation (%s) is not supported" % (k, node.name))
             elif k in ("relu1", "clip"):

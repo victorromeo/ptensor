@@ -348,8 +348,8 @@ def quantize_int8(graph, calibration, input_scale=None, input_zero_point=None,
     if len(graph.inputs) != 1:
         raise NotImplementedError("int8 quantisation of multi-input graphs")
     for n in graph.nodes:
-        if n.op in ("batch_norm", "avg_pool2d", "global_avg_pool") or \
-                (n.op == "activation" and n.attrs["kind"] in ("sigmoid", "tanh", "clip")):
+        if n.op in ("batch_norm", "global_avg_pool") or \
+                (n.op == "activation" and n.attrs["kind"] == "clip"):
             raise NotImplementedError("int8 %s (%s) has no TFLite-exact pTensor kernel; keep "
                                       "the model float or run fuse() first" % (n.op, n.name))
         if n.op in LINEAR_OPS + ("add",) and n.attrs.get("activation") not in (None, "relu", "relu6", "relu1"):
@@ -374,10 +374,13 @@ def quantize_int8(graph, calibration, input_scale=None, input_zero_point=None,
         q[inp] = _act_qparams(lo[inp], hi[inp])
     for n in g.nodes:
         out = n.outputs[0]
-        if n.op in ("max_pool2d", "reshape"):
+        # Fixed output quantization where TFLite's int8 kernels require it.
+        if n.op in ("max_pool2d", "avg_pool2d", "reshape"):
             q[out] = q[n.inputs[0]]
-        elif n.op == "softmax":
+        elif n.op == "softmax" or (n.op == "activation" and n.attrs["kind"] == "sigmoid"):
             q[out] = QuantParams(1.0 / 256.0, -128)
+        elif n.op == "activation" and n.attrs["kind"] == "tanh":
+            q[out] = QuantParams(1.0 / 128.0, 0)
         else:
             q[out] = _act_qparams(lo[out], hi[out])
     for n in g.nodes:

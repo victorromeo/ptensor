@@ -152,8 +152,8 @@ def run_batch(graph, x):
 def run_ptensor_int8(graph, x):
     """Run an int8 graph through pTensor's own kernels via the Python
     bindings (``ptensor.conv2d_int8`` and friends): what the generated code
-    must reproduce bit for bit. Supports conv2d, dense, max_pool2d, reshape,
-    softmax, add, relu / relu6, quantize and dequantize."""
+    must reproduce bit for bit. Supports conv2d, dense, max_pool2d, avg_pool2d,
+    reshape, softmax, add, relu / relu6, sigmoid, tanh, quantize and dequantize."""
     import ptensor
     from ptensor import fusion
 
@@ -181,6 +181,11 @@ def run_ptensor_int8(graph, x):
                                              activation=a.get("activation"))
         elif n.op == "max_pool2d":
             v = ptensor.maxpool2d_int8(x0, tuple(a["kernel"]), tuple(a["stride"]), a["padding"])
+        elif n.op == "avg_pool2d":
+            v = ptensor.avgpool2d_int8(x0, tuple(a["kernel"]), tuple(a["stride"]), a["padding"])
+        elif n.op == "activation" and a["kind"] in ("sigmoid", "tanh"):
+            fn = ptensor.sigmoid_int8 if a["kind"] == "sigmoid" else ptensor.tanh_int8
+            v = fn(x0, *(qp(n.inputs[0]) + qp(y)))
         elif n.op == "reshape":
             v = x0
         elif n.op == "softmax":
