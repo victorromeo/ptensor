@@ -21,37 +21,15 @@
 #include "pTensor/ops/reference/ElementwiseOperators.hpp"
 #include "pTensor/ops/tflm/symmetric_quantization_utils.hpp"
 #include "pTensor/ops/tflm/tflm_defs.hpp"
+#include "pTensor/util/fixed_point.hpp"
 
 namespace pTensor {
 namespace TflmSymQuantOps {
 
 namespace qadd_detail {
-
-// Inline copies of gemmlowp's SaturatingRoundingDoublingHighMul and
-// RoundingDivideByPOT (ops/tflm/gemmlowp.cpp) and of
-// TFLM::MultiplyByQuantizedMultiplier, so the per-element loop has no calls.
-// The shift range is checked once, in make_quantized_add_params().
-inline int32_t srdhm(int32_t a, int32_t b) {
-  const bool overflow = a == b && a == std::numeric_limits<int32_t>::min();
-  const int64_t ab = static_cast<int64_t>(a) * static_cast<int64_t>(b);
-  const int32_t nudge = ab >= 0 ? (1 << 30) : (1 - (1 << 30));
-  const int32_t hi = static_cast<int32_t>((ab + nudge) / (1ll << 31));
-  return overflow ? std::numeric_limits<int32_t>::max() : hi;
-}
-
-inline int32_t rdbpot(int32_t x, int32_t exponent) {
-  const int32_t mask = static_cast<int32_t>((1ll << exponent) - 1);
-  const int32_t remainder = x & mask;
-  const int32_t threshold = (mask >> 1) + (x < 0 ? 1 : 0);
-  return (x >> exponent) + (remainder > threshold ? 1 : 0);
-}
-
 inline int32_t mbqm(int32_t x, int32_t multiplier, int32_t shift) {
-  const int32_t left = shift > 0 ? shift : 0;
-  const int32_t right = shift > 0 ? 0 : -shift;
-  return rdbpot(srdhm(x * (1 << left), multiplier), right);
+  return fixed_point::multiply_by_quantized_multiplier(x, multiplier, shift);
 }
-
 }  // namespace qadd_detail
 
 /** Fixed-point parameters of an int8 add; computed once per eval. */
