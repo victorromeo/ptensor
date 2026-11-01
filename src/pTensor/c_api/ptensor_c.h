@@ -335,6 +335,59 @@ PTENSOR_C_EXPORT int ptensor_decode_poly_f32(uint32_t degree, uint32_t bits,
                                              const float* lut, const void* codes,
                                              uint32_t count, float* out);
 
+
+/* ---- Fused operators (PTENSOR_WITH_FUSION) ------------------------------
+ * Conv / depthwise / dense with a per-channel epilogue and a clamp:
+ *   out = clamp(acc * scale[c] + bias[c], act_lo, act_hi)   (scale given)
+ *   out = clamp(acc + bias[c], act_lo, act_hi)              (scale NULL)
+ * bias and scale may each be NULL. Pass -INFINITY / INFINITY for no clamp,
+ * 0 / INFINITY for ReLU, 0 / 6 for ReLU6. A batch norm after the layer
+ * becomes scale and bias (see ptensor.fusion.fold_batch_norm). Shapes and
+ * layouts are those of the unfused functions above. */
+
+/** 1 if this build includes the fused operators, else 0. */
+PTENSOR_C_EXPORT int ptensor_has_fusion(void);
+
+PTENSOR_C_EXPORT int ptensor_fused_conv2d_f32(
+    const float* in, uint32_t n, uint32_t h, uint32_t w, uint32_t c,
+    const float* filter, uint32_t out_c, uint32_t kh, uint32_t kw,
+    const float* bias, const float* scale, uint32_t stride_h,
+    uint32_t stride_w, int padding, uint32_t dilation_h, uint32_t dilation_w,
+    float act_lo, float act_hi, float* out);
+
+PTENSOR_C_EXPORT int ptensor_fused_depthwise_conv2d_f32(
+    const float* in, uint32_t n, uint32_t h, uint32_t w, uint32_t c,
+    const float* filter, uint32_t kh, uint32_t kw, uint32_t multiplier,
+    const float* bias, const float* scale, uint32_t stride_h,
+    uint32_t stride_w, int padding, uint32_t dilation_h, uint32_t dilation_w,
+    float act_lo, float act_hi, float* out);
+
+PTENSOR_C_EXPORT int ptensor_fused_fully_connected_f32(
+    const float* in, const float* weights, const float* bias,
+    const float* scale, float* out, uint32_t batch, uint32_t in_features,
+    uint32_t out_features, float act_lo, float act_hi);
+
+/** out = clamp(a + b) with NumPy broadcasting (ranks 1..4). */
+PTENSOR_C_EXPORT int ptensor_fused_add_f32(const float* a,
+                                           const uint32_t* a_shape,
+                                           uint32_t a_rank, const float* b,
+                                           const uint32_t* b_shape,
+                                           uint32_t b_rank, float act_lo,
+                                           float act_hi, float* out);
+
+/**
+ * int8 add with fused activation (PTENSOR_ACT_*) and requantisation,
+ * bit-exact with TFLite's ADD. Per-tensor scales / zero points, NumPy
+ * broadcasting. Needs PTENSOR_WITH_QUANTIZED_OPS as well.
+ */
+PTENSOR_C_EXPORT int ptensor_add_i8(const int8_t* a, const uint32_t* a_shape,
+                                    uint32_t a_rank, float a_scale,
+                                    int32_t a_zp, const int8_t* b,
+                                    const uint32_t* b_shape, uint32_t b_rank,
+                                    float b_scale, int32_t b_zp, int8_t* out,
+                                    float out_scale, int32_t out_zp,
+                                    int activation);
+
 #ifdef __cplusplus
 }
 #endif

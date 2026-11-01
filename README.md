@@ -23,6 +23,7 @@ Useful CMake options:
 | --- | --- | --- |
 | `PTENSOR_WITH_QUANTIZED_OPS` | `ON` | Build the int8 TFLM-compatible quantized ops |
 | `PTENSOR_WITH_FAST_KERNELS` | `ON` | Pointer-based fast paths for dense tensors (see Performance) |
+| `PTENSOR_WITH_FUSION` | `ON` | Fused conv / depthwise / dense + batch norm + activation, add + activation, int8 add (see Operator fusion) |
 | `PTENSOR_WITH_SIMPLE_ERROR_HANDLER` | `ON` | Build `SimpleErrorHandler` (uses `std::deque`/`std::function`) |
 | `PTENSOR_BARE_METAL` | `ON` for `Generic` targets | Never call `exit()`; halt instead |
 | `PTENSOR_WITH_HOUGH` | `ON` | Build `HoughRomTensor` (Hough line-codebook weight compression) |
@@ -105,6 +106,19 @@ virtual call and index arithmetic the fast path removes are the bulk of the
 reference loop's cost on any target. `-DPTENSOR_WITH_FAST_KERNELS=OFF` drops the
 fast paths when flash matters more than speed (about 300 bytes in the size
 probe, more in models that use more operators).
+
+### Operator fusion
+
+`FusedConv2dOperator`, `FusedDepthwiseConv2dOperator`,
+`FusedFullyConnectedOperator` and `FusedAddOperator` (float) compute a layer,
+its folded batch norm and its activation (ReLU, ReLU6, ReLU1 or any clamp) in
+one pass, and `TflmSymQuantOps::QuantizedAddOperator<int8_t>` is an int8 add
+with the activation and requantisation fused in, bit-exact with TFLite. Fusing
+only the activation gives bit-identical results; folding a batch norm into the
+weights removes it at run time. A MobileNetV2-style block runs 7.9x faster on
+the host than the unfused operator chain and needs a third of the activation
+RAM. `ptensor.fusion` folds and fuses Keras models on the host. Details and
+measurements: [docs/operator_fusion.md](docs/operator_fusion.md).
 
 ## Compressed weight storage
 

@@ -106,3 +106,15 @@ _sig("ptensor_lstm_cell_f32", _int, _f32p, _f32p, _f32p, _f32p, _f32p, _f32p,
      _u32, _u32, _u32, _f32p, _f32p)
 _sig("ptensor_gru_cell_f32", _int, _f32p, _f32p, _f32p, _f32p, _f32p, _f32p,
      _u32, _u32, _u32, _f32p)
+_sig("ptensor_has_fusion", _int)
+_sig("ptensor_fused_conv2d_f32", _int, _f32p, _u32, _u32, _u32, _u32, _f32p, _u32,
+     _u32, _u32, _f32p, _f32p, _u32, _u32, _int, _u32, _u32, _f32, _f32, _f32p)
+_sig("ptensor_fused_depthwise_conv2d_f32", _int, _f32p, _u32, _u32, _u32, _u32,
+     _f32p, _u32, _u32, _u32, _f32p, _f32p, _u32, _u32, _int, _u32, _u32, _f32,
+     _f32, _f32p)
+_sig("ptensor_fused_fully_connected_f32", _int, _f32p, _f32p, _f32p, _f32p, _f32p,
+     _u32, _u32, _u32, _f32, _f32)
+_sig("ptensor_fused_add_f32", _int, _f32p, _u32p, _u32, _f32p, _u32p, _u32, _f32,
+     _f32, _f32p)
+_sig("ptensor_add_i8", _int, _i8p, _u32p, _u32, _f32, _i32, _i8p, _u32p, _u32,
+     _f32, _i32, _i8p, _f32, _i32, _int)

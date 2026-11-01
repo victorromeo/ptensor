@@ -46,6 +46,9 @@ endif()
 if(PTENSOR_WITH_HOUGH)
   package_add_test_with_libraries(test_houghromtensor tensors/test_houghromtensor.cpp ptensor tensors "${PROJECT_DIR}/test-data/")
 endif()
+if(PTENSOR_WITH_FUSION)
+  package_add_test_with_libraries(test_fusion operators/test_fusion.cpp ptensor operators "${PROJECT_DIR}/test-data/")
+endif()
 package_add_test_with_libraries(test_extended_ops operators/test_extended_ops.cpp ptensor operators "${PROJECT_DIR}/test-data/")
 
 # Operators

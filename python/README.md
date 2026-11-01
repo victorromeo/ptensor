@@ -52,6 +52,13 @@ Available:
 - Packing: `pack_bits`, `decode_packed`, `packed_size`, `float_to_half`,
   `half_to_float`
 
+- Fusion (`ptensor.fusion`): `fold_batch_norm`, `fold_conv2d`,
+  `fold_depthwise_conv2d`, `fold_dense`; fused kernels `fused_conv2d`,
+  `fused_depthwise_conv2d`, `fused_fully_connected`, `fused_add`, `add_int8`
+  (TFLite-exact); and `from_keras(model)` → `fuse(layers)` → `run(layers, x)`
+  to fold and fuse a Keras Sequential model; see
+  [docs/operator_fusion.md](../docs/operator_fusion.md)
+
 - Hough compression: `hough_quantize(w, line_bits, t_bits)` returns a
   `HoughCode` (`.stream()`, `.lines`, `.nbytes`, `.decode()`,
   `.decode_on_device()`); see `ptensor.hough`
