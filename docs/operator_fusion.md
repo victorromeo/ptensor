@@ -135,7 +135,7 @@ best of N runs, microseconds).
 | depthwise 1x32x32x64, 3x3, + BN + ReLU6 | 3083 | 129 | 133 | 132 | 23x | 512 KB |
 | dense 512 → 256, + BN + ReLU | 38.9 | 22.3 | 22.5 | 18.2 | 2.1x | 2 KB |
 | add 1x32x32x64 + ReLU | 31.2 | 21.3 | 21.3 | – | 1.46x | 256 KB |
-| int8 add 1x32x32x64 + ReLU | 3283 | – | 1097 | – | 3.0x | 64 KB |
+| int8 add 1x32x32x64 + ReLU | 2238 | – | 1107 | – | 2.0x | 64 KB |
 | MobileNetV2-style block (expand, depthwise, project, residual) | 4305 | – | – | 544 | 7.9x | 0.96 MB → 0.33 MB |
 
 Dense with ReLU only (no batch norm): 22.1 µs with `FullyConnectedOperator`
@@ -152,10 +152,10 @@ What the numbers say:
   bigger win on a microcontroller is memory: each fused step removes one or
   two feature-map-sized intermediate tensors (the block above needs a third of
   the activation RAM), and there is no cache to hide the extra passes.
-- The int8 numbers include pTensor's standalone int8 `ReLUOperator`, which
-  dequantises to float and truncates when it requantises: on the benchmark
-  data 2283 of 65536 outputs differ by one step from TFLite's result. The
-  fused add has no second requantisation and matches TFLite exactly.
+- The int8 baseline is the int8 add followed by pTensor's standalone int8
+  `ReLUOperator`. That operator used to dequantise to float and truncate when
+  requantising (2283 of 65536 outputs one step off TFLite); it now uses
+  TFLite's fixed-point arithmetic, so fused and unfused agree exactly.
 
 Cortex-M4 (`-Os`, newlib-nano), a conv 8x8x4 → 8 + BN + ReLU6 program:
 
