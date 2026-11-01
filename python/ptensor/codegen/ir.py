@@ -23,11 +23,24 @@ max_pool2d         x                                    kernel, stride, padding
 avg_pool2d         x                                    kernel, stride, padding
 global_avg_pool    x                                    (output [1, C] or [1, 1, 1, C])
 batch_norm         x, mean, variance, gamma, beta       epsilon
-activation         x                                    kind: relu, relu6, relu1, clip, sigmoid, tanh;
-                                                        lo, hi for clip
-add                a, b                                 activation
+activation         x                                    kind (see UNARY_KINDS); lo, hi for clip;
+                                                        alpha for leaky_relu / elu / celu
+add                a, b                                 activation (b may be a constant; broadcasts)
+binary             a, b                                 kind: sub, mul, div, maximum, minimum,
+                                                        squared_difference, pow (either input may
+                                                        be a constant; NumPy broadcasting)
 reshape            x                                    (output shape is the target)
-softmax            x                                    beta
+softmax            x                                    beta (over the last axis)
+pad                x (NHWC)                             pads (top, bottom, left, right), value
+concat             a, b                                 axis
+transpose          x                                    perm (output axis i is input axis perm[i])
+mean               x                                    axes (output keeps the other dims, in order)
+slice              x                                    begin, step per dim (output shape = counts)
+matmul             a [M, K], b [K, N]                   -- (b may be an activation)
+lstm               x [1, T, I], W [I, 4H], U [H, 4H],   output [1, T, H], gates i, f, g, o; zero
+                   b [4H]                               initial state
+gru                x [1, T, I], W [I, 3H], U [H, 3H],   output [1, T, H], gates z, r, n
+                   bx [3H], bh [3H]                     (reset after); zero initial state
 quantize           x (float)                            (output tensor holds the int8 parameters)
 dequantize         x (int8)                             --
 =================  ===================================  ============================================
@@ -54,8 +67,14 @@ ACTIVATION_RANGES = {
     "relu1": (-1.0, 1.0),
 }
 OPS = LINEAR_OPS + ("max_pool2d", "avg_pool2d", "global_avg_pool", "batch_norm",
-                    "activation", "add", "reshape", "softmax", "quantize",
+                    "activation", "add", "binary", "reshape", "softmax", "pad", "concat",
+                    "transpose", "mean", "slice", "matmul", "lstm", "gru", "quantize",
                     "dequantize")
+BINARY_KINDS = ("sub", "mul", "div", "maximum", "minimum", "squared_difference", "pow")
+UNARY_KINDS = ("relu", "relu6", "relu1", "clip", "sigmoid", "tanh", "leaky_relu", "elu",
+               "celu", "selu", "gelu", "gelu_tanh", "silu", "mish", "hard_sigmoid",
+               "hard_swish", "softplus", "softsign", "log_sigmoid", "abs", "neg", "square",
+               "sqrt", "rsqrt", "exp", "log", "floor", "ceil", "round", "sin", "cos")
 
 
 def clamp_range(activation):

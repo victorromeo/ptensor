@@ -65,7 +65,7 @@ model ──frontend──▶ ir.Graph ──passes──▶ ir.Graph ──emit
          keras                  prune
          tflite                 fuse / unfuse
          tf (SavedModel)        encode_weights
-         pytorch (stub)         quantize_int8
+         pytorch                quantize_int8
          onnx (stub)            plan_memory
 ```
 
@@ -75,8 +75,14 @@ model ──frontend──▶ ir.Graph ──passes──▶ ir.Graph ──emit
   `[1, kh, kw, C*M]` depthwise filters, `[in, out]` dense weights) so
   frontends do all the transposing and the emitter does none. Ops:
   `conv2d`, `depthwise_conv2d`, `dense`, `max_pool2d`, `avg_pool2d`,
-  `global_avg_pool`, `batch_norm`, `activation` (relu, relu6, relu1, clip,
-  sigmoid, tanh), `add`, `reshape`, `softmax`, `quantize`, `dequantize`.
+  `global_avg_pool`, `batch_norm`, `activation` (31 kinds: relu, relu6,
+  relu1, clip, sigmoid, tanh, leaky_relu, elu, celu, selu, gelu (erf and
+  tanh forms), silu, mish, hard_sigmoid, hard_swish, softplus, softsign,
+  log_sigmoid, abs, neg, square, sqrt, rsqrt, exp, log, floor, ceil, round,
+  sin, cos), `add`, `binary` (sub, mul, div, maximum, minimum,
+  squared_difference, pow, with broadcasting and constant operands),
+  `reshape`, `softmax`, `pad`, `concat`, `transpose`, `mean`, `slice`,
+  `matmul`, `lstm`, `gru`, `quantize`, `dequantize`.
 * **Frontends** (`ptensor/codegen/frontends/`) each implement
   `accepts(source)` and `load(source) -> Graph` and register themselves;
   `load_model()` picks the first that accepts the source.
@@ -90,9 +96,11 @@ model ──frontend──▶ ir.Graph ──passes──▶ ir.Graph ──emit
   * `tf`: SavedModel directories and concrete functions, converted to a
     float TFLite flatbuffer with TensorFlow's own converter and then
     imported as TFLite.
-  * `pytorch`, `onnx`: registered so their models are recognised; `load()`
-    raises `FrontendUnavailable` with the workaround (export to TFLite) and
-    the module docstrings describe the layer mapping to implement.
+  * `pytorch`: `nn.Module`s (exported with `torch.export` and an
+    `example_input`), `ExportedProgram`s and `.pt2` files. See
+    [PyTorch](#pytorch) below.
+  * `onnx`: registered so ONNX files are recognised; `load()` raises
+    `FrontendUnavailable` with the workaround (export to TFLite).
 * **Passes** (`passes.py`) each return a new graph and add a line to
   `graph.notes`, which the generated file's header comment repeats.
 * **Emitter** (`emitter.py`) writes the files. It includes only the
@@ -102,6 +110,70 @@ model ──frontend──▶ ir.Graph ──passes──▶ ir.Graph ──emit
 * **`reference`** runs float graphs in NumPy (weights decoded exactly as the
   device decodes them) and int8 graphs through pTensor's Python bindings;
   `gen.reference(x)` is the expected output of the generated code.
+
+### PyTorch
+
+```python
+import torch
+from ptensor.codegen import CodeGenerator
+
+model = MyNet().eval()
+gen = CodeGenerator(model, example_input=torch.randn(1, 3, 32, 32), name="mynet")
+gen.generate("out/")
+```
+
+The importer exports the model with `torch.export` (in eval mode) and maps
+the resulting ATen graph, so `nn` modules, `torch.nn.functional` calls and
+tensor methods all arrive as the same operators. Anything that depends only
+on constants (`torch.zeros`, weight reshapes, a positional embedding added
+to a constant) is evaluated at import time.
+
+**Layout.** PyTorch is NCHW and pTensor NHWC. Each value carries the
+permutation between the two, so convolutions and pools run on NHWC data
+without transposes, `permute` / `transpose` / `unsqueeze` cost nothing, and a
+`transpose` node is emitted only where a PyTorch operator depends on the
+element order (a `view` of a 4D tensor, a softmax over channels). A
+`flatten` that feeds a `Linear` reorders the Linear's rows at generation
+time instead of the data at run time. By default 4D inputs and outputs of
+the generated function are NHWC; pass `channels_last_io=False` to keep
+PyTorch's NCHW order there.
+
+**Operators.** Every ATen operator pTensor has a kernel for, plus
+compositions of those kernels for the rest:
+
+| PyTorch | pTensor |
+|---|---|
+| `Conv1d`, `Conv2d` (any stride, dilation, `padding` int / tuple / `"same"` / `"valid"`, bias or not), depthwise (`groups == in_channels`, any multiplier) | conv2d / depthwise_conv2d; padding TF SAME cannot express becomes a `pad` node; other `groups` run as one dense conv with a block-diagonal filter |
+| `Linear`, `F.linear`, `addmm`, `mm`, `matmul`, `bmm`, `@` | dense, or `matmul` for activation × activation and batched products (one 2D product per batch) |
+| `BatchNorm1d/2d` | batch_norm (folded into the conv before it by `fuse`) |
+| `LayerNorm`, `GroupNorm`, `InstanceNorm2d` | mean, sub, square, mean, add, rsqrt, mul (+ affine) |
+| `MaxPool1d/2d`, `AvgPool1d/2d` (padding, `ceil_mode`, `count_include_pad`), `AdaptiveAvgPool1d/2d`, `AdaptiveMaxPool1d/2d` (output size dividing the input) | max_pool2d / avg_pool2d / global_avg_pool, with a `pad` node (−inf for max, 0 for average) when needed |
+| `ReLU`, `ReLU6`, `Hardtanh`, `clamp`, `LeakyReLU`, `PReLU`, `ELU`, `CELU`, `SELU`, `GELU` (both), `SiLU`, `Mish`, `Hardsigmoid`, `Hardswish`, `Sigmoid`, `Tanh`, `Softplus` (any beta), `Softsign`, `LogSigmoid`, `Tanhshrink`, `Softmax`, `LogSoftmax`, `Softmin` (any dim) | activation, softmax |
+| `+ - * /`, `rsub`, `reciprocal`, `pow`, `maximum`, `minimum`, `abs`, `neg`, `sqrt`, `rsqrt`, `exp`, `log`, `floor`, `ceil`, `round`, `sin`, `cos`, `square` | add / binary / activation, with PyTorch broadcasting and constant operands |
+| `view`, `reshape`, `flatten`, `unflatten`, `squeeze`, `unsqueeze`, `permute`, `transpose`, `t`, `contiguous`, `cat`, `stack`, `split`, `chunk`, `unbind`, `narrow`, `select`, slicing with steps, `repeat`, `expand`, `F.pad` (constant) | free relabelling, reshape, transpose, slice, concat, pad |
+| `mean`, `sum`, `var`, `std`, `amax` / `amin` / `max(dim)` / `min(dim)` over H, W | mean / global_avg_pool / max_pool2d |
+| `nn.Upsample` / `F.interpolate` nearest with integer factors | concat + reshape |
+| `LSTM`, `GRU` (stacked layers, `batch_first` or not, bias or not, zero initial state; output sequence and `h_n`) | lstm / gru: the pTensor cell, once per time step |
+| `F.scaled_dot_product_attention` (mask, `is_causal`), `MultiheadAttention`, `TransformerEncoderLayer` | matmul, mul, add, softmax per head |
+| `Dropout` and other identities in eval mode | removed |
+
+Verification: `python/tests/test_pytorch.py` runs 128 operator and
+small-model cases against PyTorch (NumPy reference and compiled C), and
+[examples/codegen/verify_pytorch.py](../examples/codegen/verify_pytorch.py)
+trains a CNN, a MobileNet-style net, a GRU and a small vision transformer
+on MNIST and checks the generated C against PyTorch: every model agrees on
+every test image's class, within 2.1e-5 in float
+([PYTORCH_RESULTS.md](../examples/codegen/PYTORCH_RESULTS.md)).
+
+`ptensor.codegen.frontends.pytorch.SUPPORTED` lists the ATen names. An
+operator outside the table (transposed convolution, bilinear upsampling,
+embedding, comparisons and `where`, bidirectional RNNs, reflect padding...)
+raises `NotImplementedError` naming the operator and the graph node.
+
+int8: `activations="int8"` works on PyTorch models whose operators have int8
+kernels (conv, depthwise, dense, pooling, add, ReLU / ReLU6, sigmoid, tanh,
+softmax, and the byte-moving pad, transpose, slice and reshape). The
+calibration data is in the generated function's layout (NHWC by default).
 
 ### Adding a framework
 
@@ -183,9 +255,9 @@ not compiled.
 ## Verification
 
 [examples/codegen/verify_models.py](../examples/codegen/verify_models.py)
-generates 24 variants of an MNIST CNN and a small residual network
-(depthwise, separable conv, batch norm, residual add) from Keras, TFLite and
-a SavedModel, compiles each, runs it on the test set and compares it with
+generates 26 variants of an MNIST CNN, a small residual network
+(depthwise, separable conv, batch norm, residual add) and a network with
+average pooling, tanh and sigmoid, from Keras, TFLite and a SavedModel, compiles each, runs it on the test set and compares it with
 Python. Results are in
 [examples/codegen/RESULTS.md](../examples/codegen/RESULTS.md). In short:
 
@@ -210,12 +282,19 @@ tests.
 
 * Batch 1, single subgraph, at most 4 dimensions of at most 65535 each
   (pTensor's `TensorShape`).
-* int8: no TFLite-exact pTensor kernel yet for average pooling, global
-  average pooling, sigmoid, tanh or standalone batch norm; the generator
-  says which node is the problem. Weight storage modes (packed, Hough,
+* int8: average pooling, sigmoid and tanh are supported and TFLite-exact
+  (sigmoid and softmax outputs use TFLite's fixed scale 1/256, zero point
+  -128; tanh uses 1/128, 0; average pooling keeps its input's quantization).
+  Global average pooling, standalone batch norm and standalone clip
+  activations are not supported yet, nor are the float-only operator
+  types (`binary`, `mean`, `concat`, `matmul`, `lstm`, `gru` and the
+  activations beyond relu / relu6 / sigmoid / tanh); the generator says
+  which node is the problem. Weight storage modes (packed, Hough,
   polynomial) apply to float activations.
 * The reference float conv has no dilation; dilated convolutions need
   `fuse=True`.
-* PyTorch and ONNX import are placeholders (export to TFLite for now).
+* PyTorch: batch 1, static shapes, zero RNN initial state; the operators
+  listed under [PyTorch](#pytorch). ONNX import is a placeholder (export to
+  TFLite for now).
 * `import ptensor` loads the C library, so the generator needs a
   `-DPTENSOR_BUILD_C_API=ON` build (or `PTENSOR_LIBRARY`) on the host.

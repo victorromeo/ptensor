@@ -279,24 +279,53 @@ def conv2d_int8(x, x_scale, x_zero_point, filters, f_scale, bias, out_scale,
     return out
 
 
-def maxpool2d_int8(x, kernel, stride=None, padding="VALID"):
-    """int8 max pooling over NHWC input; output keeps the input's quantization."""
-    x = _arr(x, np.int8)
-    if x.ndim != 4:
-        raise ValueError("maxpool2d_int8 expects x[n,h,w,c]")
-    kh, kw = _pair(kernel)
-    sh, sw = _pair(kernel if stride is None else stride)
-    pad = _padding(padding)
-    n, h, w, c = x.shape
-    oh = lib.ptensor_conv_output_size(h, kh, sh, pad)
-    ow = lib.ptensor_conv_output_size(w, kw, sw, pad)
-    if not oh or not ow:
-        raise ValueError("kernel does not fit the input")
-    out = np.empty((n, oh, ow, c), np.int8)
-    _check("maxpool2d_int8", lib.ptensor_maxpool2d_i8(
-        _ptr(x, ctypes.c_int8), n, h, w, c, kh, kw, sh, sw, pad,
-        _ptr(out, ctypes.c_int8)))
-    return out
+def _pool_int8(name, fn, doc):
+    def op(x, kernel, stride=None, padding="VALID"):
+        x = _arr(x, np.int8)
+        if x.ndim != 4:
+            raise ValueError("%s expects x[n,h,w,c]" % name)
+        kh, kw = _pair(kernel)
+        sh, sw = _pair(kernel if stride is None else stride)
+        pad = _padding(padding)
+        n, h, w, c = x.shape
+        oh = lib.ptensor_conv_output_size(h, kh, sh, pad)
+        ow = lib.ptensor_conv_output_size(w, kw, sw, pad)
+        if not oh or not ow:
+            raise ValueError("kernel does not fit the input")
+        out = np.empty((n, oh, ow, c), np.int8)
+        _check(name, fn(_ptr(x, ctypes.c_int8), n, h, w, c, kh, kw, sh, sw, pad,
+                        _ptr(out, ctypes.c_int8)))
+        return out
+    op.__name__ = name
+    op.__doc__ = doc
+    return op
+
+
+maxpool2d_int8 = _pool_int8(
+    "maxpool2d_int8", lib.ptensor_maxpool2d_i8,
+    "int8 max pooling over NHWC input; output keeps the input's quantization.")
+avgpool2d_int8 = _pool_int8(
+    "avgpool2d_int8", lib.ptensor_avgpool2d_i8,
+    "int8 average pooling over NHWC input (TFLite arithmetic); output keeps the "
+    "input's quantization.")
+
+
+def _act_int8(name, fn, out_scale, out_zp):
+    def op(x, x_scale, x_zero_point, out_scale=out_scale, out_zero_point=out_zp):
+        x = _arr(x, np.int8)
+        out = np.empty_like(x)
+        _check(name, fn(_ptr(x, ctypes.c_int8), _ptr(out, ctypes.c_int8), x.size,
+                        float(x_scale), int(x_zero_point), float(out_scale),
+                        int(out_zero_point)))
+        return out
+    op.__name__ = name
+    op.__doc__ = ("int8 %s, elementwise. The output defaults are TFLite's (scale %g, "
+                  "zero point %d)." % (name.split("_")[0], out_scale, out_zp))
+    return op
+
+
+sigmoid_int8 = _act_int8("sigmoid_int8", lib.ptensor_sigmoid_i8, 1.0 / 256, -128)
+tanh_int8 = _act_int8("tanh_int8", lib.ptensor_tanh_i8, 1.0 / 128, 0)
 
 
 def softmax_int8(x, x_scale, x_zero_point, out_scale=1.0 / 256, out_zero_point=-128):

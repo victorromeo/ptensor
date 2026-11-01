@@ -81,8 +81,11 @@ _sig("ptensor_fully_connected_i8_pc", _int, _i8p, _f32, _i32, _i8p, _f32p, _i32p
 _sig("ptensor_conv2d_i8", _int, _i8p, _u32, _u32, _u32, _u32, _f32, _i32, _i8p,
      _u32, _u32, _u32, _f32p, _u32, _i32p, _u32, _u32, _int, _int, _i8p, _f32,
      _i32)
-_sig("ptensor_maxpool2d_i8", _int, _i8p, _u32, _u32, _u32, _u32, _u32, _u32,
-     _u32, _u32, _int, _i8p)
+for _n in ("maxpool2d", "avgpool2d"):
+    _sig("ptensor_%s_i8" % _n, _int, _i8p, _u32, _u32, _u32, _u32, _u32, _u32,
+         _u32, _u32, _int, _i8p)
+for _n in ("sigmoid", "tanh"):
+    _sig("ptensor_%s_i8" % _n, _int, _i8p, _i8p, _u32, _f32, _i32, _f32, _i32)
 _sig("ptensor_packed_size", ctypes.c_size_t, _int, _u32, _u32)
 _sig("ptensor_pack_bits", _int, _u32p, _u32, _u32, _u8p)
 _sig("ptensor_decode_packed_f32", _int, _int, _u32, _f32, _i32, ctypes.c_void_p, _u32, _f32p)

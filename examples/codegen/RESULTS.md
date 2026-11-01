@@ -44,6 +44,8 @@ often the predicted digit agrees.
 | resnet-unfused-dyn | residual net, unfused, RamTensors | keras | 93.2% | 17832 | dynamic (56448 hw) | 314 | NumPy ref 9.5e-07 | 1.4e-06 (argmax 100.0%) |
 | resnet-hough4 | residual net, Hough weights | keras | 93.4% | 2676 | 12544 | 379 | NumPy ref 9.2e-07 | 3.8e-01 (argmax 97.1%) |
 | resnet-tflite-int8 | residual net via TFLite int8 (int8 depthwise + add) | tflite | 93.3% | 4944 | 3136 | 346 | – | TFLite ref 0 (argmax 100.0%) |
+| act-int8-ptq | avg pool + tanh + sigmoid net, generator int8 PTQ | keras | 93.1% | 7216 | 7840 | 640 | bindings 0 LSB | 3.5e-02 (argmax 99.3%) |
+| act-tflite-int8 | same net via TFLite int8 (int8 average pool, tanh, logistic) | tflite | 92.9% | 7216 | 7840 | 589 | bindings 0 LSB | TFLite ref 0 (argmax 100.0%) |
 
 Observations
 

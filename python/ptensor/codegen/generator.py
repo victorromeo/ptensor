@@ -19,6 +19,10 @@ class CodeGenerator(object):
     a TensorFlow SavedModel directory, an ``ir.Graph``, or anything a
     registered frontend accepts (see ``ptensor.codegen.frontends``).
     framework: force a frontend ("keras", "tflite", "tf", "pytorch", "onnx").
+    example_input: for a PyTorch nn.Module, an example input (tensor or
+    array, or a tuple of them) used to export it with torch.export.
+    channels_last_io: PyTorch only; True (default) makes 4D inputs and outputs
+    NHWC in the generated function, False keeps PyTorch's NCHW there.
 
     Quantisation
       weights      storage of conv / dense weights when activations are float:
@@ -66,7 +70,8 @@ class CodeGenerator(object):
                  input_scale=None, input_zero_point=None, float_io=False, fuse=True,
                  fast_kernels=True, weights_in_ram=False, prune=0.0, prune_criterion="l1",
                  prune_multiple_of=1, memory="planned", alignment=8, meta_arena_bytes=None,
-                 ram_arena_bytes=None, encode_min_size=64):
+                 ram_arena_bytes=None, encode_min_size=64, example_input=None,
+                 channels_last_io=True):
         if activations not in ("float32", "int8"):
             raise ValueError("activations must be 'float32' or 'int8'")
         if memory not in ("planned", "dynamic"):
@@ -74,7 +79,12 @@ class CodeGenerator(object):
         self.options = dict(weights=getattr(weights, "name", weights), activations=activations,
                             fuse=fuse, fast_kernels=fast_kernels, weights_in_ram=weights_in_ram,
                             prune=prune, memory=memory, float_io=float_io)
-        self.source_graph = load_model(model, framework)
+        frontend_options = {}
+        if example_input is not None:
+            frontend_options["example_input"] = example_input
+        if not channels_last_io:
+            frontend_options["channels_last_io"] = False
+        self.source_graph = load_model(model, framework, **frontend_options)
         self.name = c_ident(name or self.source_graph.name or "model")
         g = self.source_graph.copy()
         source_int8 = g.is_quantized()
