@@ -31,6 +31,7 @@ endmacro()
 # Core
 package_add_test_with_libraries(test_types core/test_types.cpp ptensor_core core "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_alloc allocators/test_arenaAllocator.cpp ptensor allocators "${PROJECT_DIR}/test-data/")
+package_add_test_with_libraries(test_arena_planner allocators/test_arenaPlanner.cpp ptensor allocators "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_context core/test_context.cpp ptensor core "${PROJECT_DIR}/test-data/")
 package_add_test_with_libraries(test_quantparams core/test_quantization_params.cpp ptensor core "${PROJECT_DIR}/test-data/")
 

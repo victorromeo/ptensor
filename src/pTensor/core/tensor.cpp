@@ -38,7 +38,12 @@ Tensor::Tensor(TensorInterface* ptr) : Handle((void*)ptr) {
   }
 }
 Tensor& Tensor::operator=(TensorInterface* ptr) {
+  if (ptr == _ptr) return *this;
+  // Release the tensor this handle owned (it used to leak, so a model that
+  // reassigned a Tensor per layer slowly filled its arenas).
+  free();
   _ptr = (void*)ptr;
+  if (ptr == nullptr) return *this;
   bind(*this, *Context::get_default_context()->get_metadata_allocator());
   // Context::get_metadata_allocator()->bind(_ptr, this);
   return *this;
@@ -56,6 +61,7 @@ Tensor::Tensor(Tensor&& that) {
 }
 Tensor& Tensor::operator=(Tensor&& that) {
   if (this != &that) {
+    free();
     _ptr = that._ptr;
     AllocatorInterface* alloc =
         Context::get_default_context()->get_metadata_allocator();
