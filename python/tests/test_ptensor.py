@@ -254,6 +254,27 @@ class QuantizedLayers(unittest.TestCase):
         want = x.reshape(2, 3, 2, 4, 2, 3).max(axis=(2, 4))
         np.testing.assert_array_equal(got, want)
 
+    def test_avgpool2d_int8_matches_tflite_rounding(self):
+        for (h, w), k, st, pad in [((7, 7), (3, 3), (2, 2), "SAME"), ((6, 5), (2, 2), (2, 2), "VALID"),
+                                   ((8, 8), (2, 2), (4, 4), "SAME")]:
+            x = RNG.integers(-128, 128, (2, h, w, 3)).astype(np.int8)
+
+            def mean(win, axis):  # TFLite: int32 sum, round half away from zero
+                s_ = win.astype(np.int64).sum(axis=axis)
+                n = win.shape[1] * win.shape[2]
+                return np.where(s_ > 0, (s_ + n // 2) // n, -((-s_ + n // 2) // n))
+            np.testing.assert_array_equal(ptensor.avgpool2d_int8(x, k, st, pad),
+                                          np_pool(x, k, st, mean, pad), err_msg=str((h, w, k, st, pad)))
+
+    def test_sigmoid_tanh_int8(self):
+        x = np.arange(-128, 128, dtype=np.int8)
+        for fn, ref, (os_, oz) in ((ptensor.sigmoid_int8, lambda v: 1 / (1 + np.exp(-v)), (1 / 256, -128)),
+                                   (ptensor.tanh_int8, np.tanh, (1 / 128, 0))):
+            got = fn(x, 0.05, 3)
+            want = np.clip(np.rint(ref((x.astype(np.float64) - 3) * 0.05) / os_) + oz, -128, 127)
+            self.assertLessEqual(np.abs(got.astype(np.int32) - want).max(), 1)
+            self.assertGreaterEqual((got == want).mean(), 0.97)
+
     def test_fully_connected_int8_per_channel(self):
         xq = RNG.integers(-128, 128, (3, 20)).astype(np.int8)
         wq = RNG.integers(-127, 128, (20, 7)).astype(np.int8)

@@ -244,6 +244,33 @@ struct GELU {
     return 0.5f * x * (1.0f + std::tanh(k * (x + 0.044715f * x * x * x)));
   }
 };
+/** GELU, exact form x * Phi(x) (PyTorch's default, approximate="none"). */
+struct GELUErf {
+  float operator()(float x) const {
+    return 0.5f * x * (1.0f + std::erf(x * 0.7071067811865476f));
+  }
+};
+/** CELU: max(0, x) + min(0, alpha * (exp(x / alpha) - 1)). */
+struct CELU {
+  float alpha;
+  CELU(float alpha = 1.0f) : alpha(alpha) {}
+  float operator()(float x) const {
+    return x >= 0.0f ? x : alpha * (std::exp(x / alpha) - 1.0f);
+  }
+};
+/** Mish: x * tanh(softplus(x)). */
+struct Mish {
+  float operator()(float x) const {
+    const float sp = x > 20.0f ? x : std::log1p(std::exp(x));
+    return x * std::tanh(sp);
+  }
+};
+/** log(sigmoid(x)) = -softplus(-x), stable for large |x|. */
+struct LogSigmoid {
+  float operator()(float x) const {
+    return x < -20.0f ? x : -std::log1p(std::exp(-x));
+  }
+};
 struct Softplus {
   float operator()(float x) const {
     // log(1 + e^x), stable for large |x|
@@ -311,6 +338,10 @@ PTENSOR_UNARY_OP(HardSigmoidOperator, HardSigmoid);
 PTENSOR_UNARY_OP(HardSwishOperator, HardSwish);
 PTENSOR_UNARY_OP(SwishOperator, Swish);
 PTENSOR_UNARY_OP(GeluOperator, GELU);
+PTENSOR_UNARY_OP(GeluErfOperator, GELUErf);
+PTENSOR_UNARY_OP(CeluOperator, CELU);
+PTENSOR_UNARY_OP(MishOperator, Mish);
+PTENSOR_UNARY_OP(LogSigmoidOperator, LogSigmoid);
 PTENSOR_UNARY_OP(SoftplusOperator, Softplus);
 PTENSOR_UNARY_OP(SoftsignOperator, Softsign);
 PTENSOR_UNARY_OP(AbsOperator, Abs);

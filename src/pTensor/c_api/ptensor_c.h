@@ -273,6 +273,30 @@ PTENSOR_C_EXPORT int ptensor_maxpool2d_i8(const int8_t* in, uint32_t n,
                                           uint32_t stride_h, uint32_t stride_w,
                                           int padding, int8_t* out);
 
+/**
+ * int8 average pooling, NHWC, TFLite AVERAGE_POOL_2D arithmetic (padding not
+ * counted, mean rounded half away from zero). Input and output share
+ * quantization params.
+ */
+PTENSOR_C_EXPORT int ptensor_avgpool2d_i8(const int8_t* in, uint32_t n,
+                                          uint32_t h, uint32_t w, uint32_t c,
+                                          uint32_t kh, uint32_t kw,
+                                          uint32_t stride_h, uint32_t stride_w,
+                                          int padding, int8_t* out);
+/**
+ * int8 logistic / tanh, elementwise, with the given input and output
+ * quantization (TFLite uses out 1/256, -128 for logistic and 1/128, 0 for
+ * tanh).
+ */
+PTENSOR_C_EXPORT int ptensor_sigmoid_i8(const int8_t* in, int8_t* out,
+                                        uint32_t count, float in_scale,
+                                        int32_t in_zp, float out_scale,
+                                        int32_t out_zp);
+PTENSOR_C_EXPORT int ptensor_tanh_i8(const int8_t* in, int8_t* out,
+                                     uint32_t count, float in_scale,
+                                     int32_t in_zp, float out_scale,
+                                     int32_t out_zp);
+
 /* ---- packed storage --------------------------------------------------- */
 
 /** Bytes needed to store `count` values in the given packed format. */

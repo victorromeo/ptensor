@@ -21,6 +21,25 @@ from .ir import FLOAT32, INT8, INT32, LINEAR_OPS, clamp_range
 _TTYPE = {FLOAT32: "flt", INT8: "i8", INT32: "i32"}
 _CTYPE = {FLOAT32: "float", INT8: "int8_t", INT32: "int32_t"}
 _TFLM_ACT = {None: 0, "relu": 1, "relu1": 2, "relu6": 3}
+# activation kind -> (pTensor operator alias, functor constructor or None)
+_UNARY = {
+    "leaky_relu": ("LeakyReLUOperator", "LeakyReLU"), "elu": ("EluOperator", "ELU"),
+    "celu": ("CeluOperator", "CELU"), "selu": ("SeluOperator", None),
+    "gelu": ("GeluErfOperator", None), "gelu_tanh": ("GeluOperator", None),
+    "silu": ("SwishOperator", None), "mish": ("MishOperator", None),
+    "hard_sigmoid": ("HardSigmoidOperator", None), "hard_swish": ("HardSwishOperator", None),
+    "softplus": ("SoftplusOperator", None), "softsign": ("SoftsignOperator", None),
+    "log_sigmoid": ("LogSigmoidOperator", None), "abs": ("AbsOperator", None),
+    "neg": ("NegOperator", None), "square": ("SquareOperator", None),
+    "sqrt": ("SqrtOperator", None), "rsqrt": ("RsqrtOperator", None),
+    "exp": ("ExpOperator", None), "log": ("LogOperator", None),
+    "floor": ("FloorOperator", None), "ceil": ("CeilOperator", None),
+    "round": ("RoundOperator", None), "sin": ("SinOperator", None),
+    "cos": ("CosOperator", None),
+}
+_BINARY = {"sub": "SubOperator", "mul": "MulOperator", "div": "DivOperator",
+           "maximum": "MaximumOperator", "minimum": "MinimumOperator",
+           "squared_difference": "SquaredDifferenceOperator", "pow": "PowOperator"}
 FEATURES = ("PTENSOR_WITH_QUANTIZED_OPS", "PTENSOR_WITH_FUSION", "PTENSOR_WITH_HOUGH",
             "PTENSOR_WITH_POLY_QUANT", "PTENSOR_WITH_FAST_KERNELS",
             "PTENSOR_WITH_SIMPLE_ERROR_HANDLER")
@@ -231,6 +250,13 @@ class CEmitter(object):
         q = self.qparams_stmt("xv", name)
         return "xv", "    " + stmt + ("\n    " + q if q else "")
 
+    def operand(self, name, var):
+        """(expression, statement) for an input that may be an activation or a
+        constant (constants get a local Tensor named `var`)."""
+        if self.g.tensors[name].is_const:
+            return var, "    Tensor %s = %s;" % (var, self.const(name))
+        return self.handle(name), ""
+
     # -- operators -------------------------------------------------------------
 
     def fused_act(self, act):
@@ -256,7 +282,8 @@ class CEmitter(object):
         x = node.inputs[0] if node.inputs else None
         y = node.outputs[0]
         int8 = g.tensors[y].dtype == INT8 or (x is not None and g.tensors[x].dtype == INT8)
-        X, Y = (self.handle(x) if x else None), self.handle(y)
+        X = self.handle(x) if x is not None and x in self.act_index else None
+        Y = self.handle(y)
         pre, body = [], None
         pad = a.get("padding")
 
@@ -346,7 +373,10 @@ class CEmitter(object):
 
         elif op in ("max_pool2d", "avg_pool2d"):
             if int8 and op == "avg_pool2d":
-                raise EmitterError("int8 avg_pool2d has no TFLite-exact pTensor kernel")
+                qi, qo = g.tensors[node.inputs[0]].quant, g.tensors[node.outputs[0]].quant
+                if (float(qi.scale[0]), int(qi.zero_point[0])) != (float(qo.scale[0]), int(qo.zero_point[0])):
+                    raise EmitterError("int8 avg_pool2d %s must keep its input's quantization "
+                                       "(as TFLite requires)" % node.name)
             T = "int8_t" if int8 else "float"
             hdr, cls = (("MaxPoolOperator.hpp", "MaxPoolOperator") if op == "max_pool2d" else
                         ("AvgPoolOperator.hpp", "AvgPoolOperator"))
@@ -383,6 +413,15 @@ class CEmitter(object):
                 body = ("typedef %s<%s> Op;\n    Op op;\n"
                         "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();"
                         % (cls, T, X, Y))
+            elif int8 and k == "sigmoid":
+                self.includes.add("pTensor/ops/reference/LogisticOperator.hpp")
+                body = ("typedef LogisticOperator<int8_t> Op;\n    Op op;\n"
+                        "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();" % (X, Y))
+            elif int8 and k == "tanh":
+                self.includes.add("pTensor/ops/reference/TanhOperator.hpp")
+                body = ("typedef TanhOperator<int8_t> Op;\n    Op op;\n"
+                        "    op.set_inputs({{Op::act_in, %s}}).set_outputs({{Op::act_out, %s}}).eval();"
+                        % (X, Y))
             elif int8:
                 raise EmitterError("int8 %s activation (%s) is not supported" % (k, node.name))
             elif k in ("relu1", "clip"):
@@ -400,6 +439,13 @@ class CEmitter(object):
                 body = ("typedef TanhOperator<float> Op;\n    Op op;\n"
                         "    op.set_inputs({{Op::act_in, %s}}).set_outputs({{Op::act_out, %s}}).eval();"
                         % (X, Y))
+            elif k in _UNARY:
+                cls, fn = _UNARY[k]
+                self.includes.add("pTensor/ops/reference/ElementwiseOperators.hpp")
+                ctor = "op(activations::%s(%s))" % (fn, _fmt_float(a.get("alpha", 1.0))) if fn else "op"
+                body = ("typedef %s Op;\n    Op %s;\n"
+                        "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();"
+                        % (cls, ctor, X, Y))
             else:
                 raise EmitterError("activation %s" % k)
 
@@ -427,6 +473,125 @@ class CEmitter(object):
                 body = ("typedef BroadcastAddOperator<float> Op;\n    Op op;\n"
                         "    op.set_inputs({{Op::a, %s}, {Op::b, %s}}).set_outputs({{Op::c, %s}}).eval();"
                         % (X, B, Y))
+
+        elif op == "binary":
+            if int8:
+                raise EmitterError("int8 %s (%s) is not supported" % (a["kind"], node.name))
+            self.includes.add("pTensor/ops/reference/ElementwiseOperators.hpp")
+            A, stmt_a = self.operand(node.inputs[0], "ca")
+            B, stmt_b = self.operand(node.inputs[1], "cb")
+            pre += [st for st in (stmt_a, stmt_b) if st]
+            body = ("typedef %s<float> Op;\n    Op op;\n"
+                    "    op.set_inputs({{Op::a, %s}, {Op::b, %s}}).set_outputs({{Op::c, %s}}).eval();"
+                    % (_BINARY[a["kind"]], A, B, Y))
+
+        elif op == "pad":
+            self.includes.add("pTensor/ops/reference/LayerOperators.hpp")
+            T = "int8_t" if int8 else "float"
+            v = a.get("value", 0.0)
+            if int8:
+                val = str(int(v))
+            elif np.isneginf(v):
+                val = "-INFINITY"
+            elif np.isposinf(v):
+                val = "INFINITY"
+            else:
+                val = _fmt_float(v)
+            body = ("typedef PadOperator<%s> Op;\n    Op op(%d, %d, %d, %d, %s);\n"
+                    "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();"
+                    % ((T,) + tuple(int(p) for p in a["pads"]) + (val, X, Y)))
+
+        elif op == "concat":
+            if int8:
+                raise EmitterError("int8 concat (%s) is not supported" % node.name)
+            self.includes.add("pTensor/ops/reference/LayerOperators.hpp")
+            A, stmt_a = self.operand(node.inputs[0], "ca")
+            B, stmt_b = self.operand(node.inputs[1], "cb")
+            pre += [st for st in (stmt_a, stmt_b) if st]
+            body = ("typedef ConcatOperator<float> Op;\n    Op op(%d);\n"
+                    "    op.set_inputs({{Op::a, %s}, {Op::b, %s}}).set_outputs({{Op::out, %s}}).eval();"
+                    % (a["axis"], A, B, Y))
+
+        elif op == "transpose":
+            T = "int8_t" if int8 else "float"
+            self.includes.add("pTensor/ops/reference/TransposeOperator.hpp")
+            self.includes.add("pTensor/tensors/RomTensor.hpp")
+            perm = [int(p) for p in a["perm"]]
+            pre.append("    static const int32_t perm[%d] = {%s};" % (len(perm), ", ".join(map(str, perm))))
+            pre.append("    Tensor p = new RomTensor(TensorShape(%d), i32, perm);" % len(perm))
+            body = ("typedef TransposeOperator<%s> Op;\n    Op op;\n"
+                    "    op.set_inputs({{Op::input, %s}, {Op::perm, p}}).set_outputs({{Op::output, %s}}).eval();"
+                    % (T, X, Y))
+
+        elif op == "mean":
+            if int8:
+                raise EmitterError("int8 mean (%s) is not TFLite-exact" % node.name)
+            self.includes.add("pTensor/ops/reference/ReduceOperator.hpp")
+            body = ("typedef ReduceMeanOperator<float> Op;\n    Op op({%s});\n"
+                    "    op.set_inputs({{Op::input, %s}}).set_outputs({{Op::output, %s}}).eval();"
+                    % (", ".join(str(int(d)) for d in a["axes"]), X, Y))
+
+        elif op == "slice":
+            T = "int8_t" if int8 else "float"
+            self.includes.add("pTensor/ops/reference/SliceOperator.hpp")
+            r = len(a["begin"])
+            body = ("const uint16_t begin[%d] = {%s};\n    const uint16_t step[%d] = {%s};\n"
+                    "    typedef SliceOperator<%s> Op;\n    Op op(begin, step, %d);\n"
+                    "    op.set_inputs({{Op::in, %s}}).set_outputs({{Op::out, %s}}).eval();"
+                    % (r, ", ".join(str(int(v)) for v in a["begin"]), r,
+                       ", ".join(str(int(v)) for v in a["step"]), T, r, X, Y))
+
+        elif op == "matmul":
+            if int8:
+                raise EmitterError("int8 matmul (%s) is not supported" % node.name)
+            self.includes.add("pTensor/ops/reference/MatrixMultiplyOperator.hpp")
+            A, stmt_a = self.operand(node.inputs[0], "ca")
+            B, stmt_b = self.operand(node.inputs[1], "cb")
+            pre += [st for st in (stmt_a, stmt_b) if st]
+            body = ("typedef MatrixMultOperator<float> Op;\n    Op op;\n"
+                    "    op.set_inputs({{Op::a, %s}, {Op::b, %s}}).set_outputs({{Op::c, %s}}).eval();"
+                    % (A, B, Y))
+
+        elif op in ("lstm", "gru"):
+            if int8:
+                raise EmitterError("int8 %s (%s) is not supported" % (op, node.name))
+            self.includes.add("pTensor/ops/reference/LayerOperators.hpp")
+            xt = g.tensors[x]
+            T_, I = xt.shape[1], xt.shape[2]
+            H = g.tensors[node.inputs[2]].shape[0]
+            names = ("W", "U", "b") if op == "lstm" else ("W", "U", "bx", "bh")
+            for i, nm in enumerate(names):
+                pre.append("    Tensor %s = %s;" % (nm, self.const(node.inputs[i + 1])))
+            sh = self.shape((1, H))
+            lines = ["static float h0[%d];" % H]
+            if op == "lstm":
+                lines.append("static float cbuf[2][%d];" % H)
+            lines.append("memset(h0, 0, sizeof(h0));")
+            if op == "lstm":
+                lines.append("memset(cbuf, 0, sizeof(cbuf));")
+            lines += ["const float* xs = static_cast<const float*>(%s->raw_data());" % X,
+                      "float* ys = static_cast<float*>(%s->raw_mutable_data());" % Y,
+                      "for (uint16_t t = 0; t < %d; ++t) {" % T_,
+                      "  Tensor xt = new BufferTensor(%s, flt, const_cast<float*>(xs) + t * %d);"
+                      % (self.shape((1, I)), I),
+                      "  Tensor ht = new BufferTensor(%s, flt, t ? ys + (t - 1) * %d : h0);" % (sh, H),
+                      "  Tensor ho = new BufferTensor(%s, flt, ys + t * %d);" % (sh, H)]
+            if op == "lstm":
+                lines += ["  Tensor ct = new BufferTensor(%s, flt, cbuf[t & 1]);" % sh,
+                          "  Tensor co = new BufferTensor(%s, flt, cbuf[(t + 1) & 1]);" % sh,
+                          "  LstmCellOperator op;",
+                          "  op.set_inputs({{LstmCellOperator::x, xt}, {LstmCellOperator::h, ht}, "
+                          "{LstmCellOperator::c, ct}, {LstmCellOperator::W, W}, {LstmCellOperator::U, U}, "
+                          "{LstmCellOperator::b, b}})",
+                          "      .set_outputs({{LstmCellOperator::h_out, ho}, {LstmCellOperator::c_out, co}}).eval();"]
+            else:
+                lines += ["  GruCellOperator op;",
+                          "  op.set_inputs({{GruCellOperator::x, xt}, {GruCellOperator::h, ht}, "
+                          "{GruCellOperator::W, W}, {GruCellOperator::U, U}, {GruCellOperator::bx, bx}, "
+                          "{GruCellOperator::bh, bh}})",
+                          "      .set_outputs({{GruCellOperator::h_out, ho}}).eval();"]
+            lines += ["  if (g_err.failed) break;", "}"]
+            body = "\n    ".join(lines)
 
         elif op == "softmax":
             if abs(a.get("beta", 1.0) - 1.0) > 1e-6:
@@ -637,6 +802,7 @@ size_t {n}_ram_high_water(void);
 #endif
 
 using namespace pTensor;
+namespace pTensor {{ namespace ReferenceOperators {{}} }}
 using namespace pTensor::ReferenceOperators;
 
 namespace {{

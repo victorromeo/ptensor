@@ -165,7 +165,8 @@ def tflite_reference(model_path_or_bytes, x):
 
 
 def train_models(work):
-    """MNIST CNN (same as examples/mnist) plus a small int8 residual net."""
+    """MNIST CNN (same as examples/mnist), a small int8 residual net, and a net
+    with average pooling, tanh and sigmoid."""
     import tensorflow as tf
     path = os.path.join(work, "mnist.keras")
     xtr, ytr = mnist_data.load("train")
@@ -201,7 +202,18 @@ def train_models(work):
         m.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
         m.fit(xtr, ytr, epochs=1, batch_size=128, verbose=0)
         m.save(rpath)
-    for name in ("mnist", "resnet"):
+    apath = os.path.join(work, "act.keras")
+    if not os.path.exists(apath):  # int8 average pooling, tanh and sigmoid
+        tf.keras.utils.set_random_seed(2)
+        m = tf.keras.Sequential([
+            L.Input((28, 28, 1)), L.Conv2D(8, 3, padding="same", activation="relu"),
+            L.AveragePooling2D(3, 2, padding="same"), L.Conv2D(12, 3, padding="same", activation="tanh"),
+            L.AveragePooling2D(2), L.Conv2D(16, 3, activation="sigmoid"),
+            L.Flatten(), L.Dense(10), L.Softmax()], name="act")
+        m.compile("adam", "sparse_categorical_crossentropy", metrics=["accuracy"])
+        m.fit(xtr, ytr, epochs=2, batch_size=128, verbose=0)
+        m.save(apath)
+    for name in ("mnist", "resnet", "act"):
         tfl = os.path.join(work, name + "_int8.tflite")
         if not os.path.exists(tfl):
             km = tf.keras.models.load_model(os.path.join(work, name + ".keras"))
@@ -250,6 +262,10 @@ def modes(work, calib):
         ("resnet-unfused-dyn", resnet, dict(fuse=False, memory="dynamic")),
         ("resnet-hough4", resnet, dict(weights="hough4", encode_min_size=16)),
         ("resnet-tflite-int8", os.path.join(work, "resnet_int8.tflite"), dict()),
+        ("act-int8-ptq", os.path.join(work, "act.keras"),
+         dict(activations="int8", calibration_data=calib, input_scale=1 / 255.0,
+              input_zero_point=-128)),
+        ("act-tflite-int8", os.path.join(work, "act_int8.tflite"), dict()),
     ]
     return m
 

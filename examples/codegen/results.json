@@ -469,5 +469,39 @@
    "us": 341.27,
    "text_B": 85783
   }
+ },
+ {
+  "mode": "act-int8-ptq",
+  "source": "keras",
+  "weights_B": 7216,
+  "arena_B": 7840,
+  "us": 640.07,
+  "meta_hw": 272,
+  "ram_hw": 368,
+  "features": [
+   "FAST_KERNELS",
+   "QUANTIZED_OPS"
+  ],
+  "accuracy": 0.931,
+  "vs_bindings_max_lsb": 0,
+  "vs_original_max_abs": 0.03495532274246216,
+  "vs_original_same_argmax": 0.993
+ },
+ {
+  "mode": "act-tflite-int8",
+  "source": "tflite",
+  "weights_B": 7216,
+  "arena_B": 7840,
+  "us": 588.75,
+  "meta_hw": 272,
+  "ram_hw": 368,
+  "features": [
+   "FAST_KERNELS",
+   "QUANTIZED_OPS"
+  ],
+  "accuracy": 0.929,
+  "vs_bindings_max_lsb": 0,
+  "vs_tflite_max": 0.0,
+  "vs_tflite_same_argmax": 1.0
  }
 ]

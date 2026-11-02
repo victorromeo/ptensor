@@ -66,7 +66,7 @@ To regenerate the TFLite constants (needs TensorFlow):
 | `TflmSymQuantOps::QuantizeOperator`, `DequantizeOperator` | OK | |
 | `TflmSymQuantOps::QuantizedAddOperator` | OK | bit-exact (tests from the fusion work) |
 | `ReLUOperator<int8_t>`, `ReLU6Operator<int8_t>` | OK | bit-exact on all 256 inputs |
-| `LogisticOperator<int8_t>` | **Fixed** | truncated instead of rounding: 127 of 256 inputs one step off TFLite; now bit-exact on all 256 |
+| `LogisticOperator<int8_t>` | **Fixed** | truncated instead of rounding: 127 of 256 inputs one step off TFLite; now bit-exact on all 256 (and used by code generation) |
 | `TanhOperator<int8_t>` | OK | bit-exact on all 256 inputs |
 | `SoftmaxOperator<int8_t>` | **Fixed** | rank 3 and 4 inputs, as for float; bit-exact on 2D and 4D cases |
 | `MaxPoolOperator<int8_t>` | **Fixed** | SAME padding, as for float; now bit-exact |
